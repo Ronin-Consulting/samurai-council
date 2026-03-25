@@ -1,0 +1,31 @@
+<MudStack AlignItems="AlignItems.Center" Spacing="2">
+    <MudProgressCircular Color="Color.Primary"
+                         Size="@MudSize"
+                         Indeterminate="true" />
+    @if (!string.IsNullOrEmpty(Message))
+    {
+        <MudText Typo="Typo.body2" Color="Color.Secondary">@Message</MudText>
+    }
+</MudStack>
+
+@code {
+    [Parameter]
+    public string? Message { get; set; }
+
+    [Parameter]
+    public SpinnerSize Size { get; set; } = SpinnerSize.Medium;
+
+    private Size MudSize => Size switch
+    {
+        SpinnerSize.Small => MudBlazor.Size.Small,
+        SpinnerSize.Large => MudBlazor.Size.Large,
+        _ => MudBlazor.Size.Medium
+    };
+
+    public enum SpinnerSize
+    {
+        Small,
+        Medium,
+        Large
+    }
+}

@@ -1,0 +1,331 @@
+@page "/"
+@page "/chat"
+@page "/chat/{ConversationId:guid}"
+@implements IDisposable
+@inject ConversationState State
+@inject ICouncilService CouncilService
+@inject ConversationService Persistence
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject ILogger<Chat> Logger
+
+<div class="chat-container">
+    <div class="messages-area" @ref="_messagesContainer">
+        @if (State.CurrentConversation == null)
+        {
+            <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Class="welcome-screen welcome-enter">
+                <MudText Typo="Typo.h3" Color="Color.Primary" Class="mt-4" Style="font-weight: 700;">SamurAI Council</MudText>
+                <MudText Typo="Typo.h6" Color="Color.Secondary" Align="Align.Center" Style="max-width: 540px; font-weight: 400;">
+                    Your Multi-Model AI Advisory Board
+                </MudText>
+                <div style="max-width: 560px; width: 100%; margin-top: 1.5rem;">
+                    <img src="smaurai_council.png" alt="SamurAI Council" style="width: 100%; height: auto; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);" />
+                </div>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center" Class="mt-4" Style="max-width: 480px;">
+                    Ask a question and get responses from multiple AI models, peer-reviewed and synthesized into a final answer.
+                </MudText>
+            </MudStack>
+        }
+        else if (State.CurrentConversation.Messages.Count == 0)
+        {
+            <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Class="empty-conversation">
+                <MudIcon Icon="@Icons.Material.Filled.Chat" Size="Size.Large" Color="Color.Secondary" />
+                <MudText Typo="Typo.body1" Color="Color.Secondary">
+                    Start a conversation by typing a message below.
+                </MudText>
+            </MudStack>
+        }
+        else
+        {
+            <div class="messages-list">
+                @{
+                    string? lastUserQuery = null;
+                    DateTime lastQueryTime = DateTime.UtcNow;
+                }
+                @foreach (var message in State.CurrentConversation.Messages)
+                {
+                    @if (message is UserMessage userMsg)
+                    {
+                        lastUserQuery = userMsg.Content;
+                        lastQueryTime = DateTime.UtcNow; // Will be overwritten but gives a reasonable timestamp
+                        <div class="message-row user-row message-enter">
+                            <div class="bubble user-bubble">
+                                <MarkdownRenderer Content="@userMsg.Content" />
+                            </div>
+                            <MudAvatar Color="Color.Primary" Size="Size.Small" Class="message-avatar">
+                                <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" />
+                            </MudAvatar>
+                        </div>
+                    }
+                    else if (message is AssistantMessage assistantMsg)
+                    {
+                        <div class="message-row assistant-row message-enter">
+                            <MudAvatar Color="Color.Secondary" Size="Size.Small" Class="message-avatar">
+                                <MudIcon Icon="@Icons.Material.Filled.Groups" Size="Size.Small" />
+                            </MudAvatar>
+                            <div class="bubble assistant-bubble">
+                                <AssistantMessagePanel Message="@assistantMsg"
+                                                       Query="@lastUserQuery"
+                                                       Timestamp="@lastQueryTime" />
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        }
+    </div>
+
+    @* Bottom input area - always visible, disabled during processing *@
+    <div class="input-area">
+        <div class="d-flex flex-row align-center gap-3" style="max-width: 720px; margin: 0 auto;">
+            <div class="flex-1">
+                <MudTextField @key="_inputKey"
+                              T="string"
+                              Value="@_userInput"
+                              ValueChanged="@((string v) => _userInput = v)"
+                              Placeholder="Ask the Council..."
+                              Variant="Variant.Outlined"
+                              Lines="1"
+                              AutoGrow="true"
+                              MaxLines="4"
+                              Immediate="true"
+                              Disabled="@State.IsProcessing"
+                              OnKeyDown="HandleKeyDown"
+                              FullWidth="true" />
+            </div>
+            <MudIconButton Icon="@Icons.Material.Filled.Send"
+                           Color="Color.Primary"
+                           Variant="Variant.Filled"
+                           Size="Size.Large"
+                           Disabled="@(string.IsNullOrWhiteSpace(_userInput) || State.IsProcessing)"
+                           OnClick="SendMessage"
+                           Class="send-button" />
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public Guid? ConversationId { get; set; }
+
+    private string _userInput = string.Empty;
+    private int _inputKey = 0;
+    private ElementReference _messagesContainer;
+    private bool _disposed;
+
+    protected override void OnInitialized()
+    {
+        State.OnChange += OnStateChanged;
+    }
+
+    private void OnStateChanged()
+    {
+        if (_disposed) return;
+        InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ConversationId.HasValue && State.CurrentConversation?.Id != ConversationId)
+        {
+            var conversation = await Persistence.LoadConversationAsync(ConversationId.Value);
+            if (_disposed) return;
+            if (conversation != null)
+            {
+                State.CurrentConversation = conversation;
+            }
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(_userInput) || State.IsProcessing)
+            return;
+
+        var input = _userInput.Trim();
+        _userInput = string.Empty;
+        _inputKey++;  // Force MudTextField recreation to clear internal state
+        StateHasChanged();
+
+        // Create new conversation if needed
+        if (State.CurrentConversation == null)
+        {
+            var conversation = await Persistence.CreateConversationAsync();
+            State.CurrentConversation = conversation;
+
+            // Add to sidebar conversation list
+            State.AddConversation(new ConversationSummary(
+                conversation.Id,
+                conversation.Title,
+                conversation.CreatedAt,
+                null
+            ));
+
+            // Navigate to conversation URL
+            Navigation.NavigateTo($"/chat/{conversation.Id}", forceLoad: false);
+        }
+
+        // Create and save user message
+        var userMessage = new UserMessage { Content = input };
+        State.CurrentConversation!.Messages.Add(userMessage);
+        await Persistence.SaveUserMessageAsync(State.CurrentConversation.Id, userMessage);
+
+        // Create assistant message with loading state
+        var assistantMessage = new AssistantMessage
+        {
+            Loading = new LoadingState { Stage1 = true }
+        };
+        State.CurrentConversation.Messages.Add(assistantMessage);
+        State.IsProcessing = true;
+
+        try
+        {
+            // Stage 1: Collect responses
+            var stage1Results = await CouncilService.Stage1CollectResponsesAsync(input);
+            if (_disposed) return;
+            assistantMessage.Stage1 = stage1Results;
+            assistantMessage.Loading = new LoadingState { Stage2 = true };
+            StateHasChanged();
+
+            if (stage1Results.Count == 0)
+            {
+                assistantMessage.Stage3 = new Stage3Response
+                {
+                    Model = "error",
+                    Response = "Unable to get responses from any AI model. Please check your API configuration."
+                };
+                assistantMessage.Loading = null;
+                Snackbar.Add("No AI models responded. Check your API configuration.", Severity.Warning);
+                return;
+            }
+
+            // Stage 2: Collect rankings
+            var (stage2Results, labelToModel) = await CouncilService.Stage2CollectRankingsAsync(input, stage1Results);
+            if (_disposed) return;
+            assistantMessage.Stage2 = stage2Results;
+            assistantMessage.Loading = new LoadingState { Stage3 = true };
+            StateHasChanged();
+
+            // Calculate aggregate rankings
+            var aggregateRankings = AggregateRankingCalculator.Calculate(stage2Results, labelToModel);
+            assistantMessage.Metadata = new CouncilMetadata
+            {
+                LabelToModel = labelToModel,
+                AggregateRankings = aggregateRankings
+            };
+            StateHasChanged();
+
+            // Stage 3: Synthesize final answer
+            var stage3Result = await CouncilService.Stage3SynthesizeFinalAsync(input, stage1Results, stage2Results);
+            if (_disposed) return;
+
+            // Propagate chart from best-ranked Stage 1 response to Stage 3
+            ChartRecommendation? chartFromStage1 = null;
+            if (aggregateRankings.Count > 0)
+            {
+                var topRankedModel = aggregateRankings.First().Model;
+                var topRankedResponse = stage1Results.FirstOrDefault(r => r.Model == topRankedModel);
+                chartFromStage1 = topRankedResponse?.ToolUsages
+                    .FirstOrDefault(t => t.Chart != null)?.Chart;
+            }
+            // Fallback: if top-ranked has no chart, find first available
+            chartFromStage1 ??= stage1Results
+                .SelectMany(r => r.ToolUsages)
+                .FirstOrDefault(t => t.Chart != null)?.Chart;
+
+            if (chartFromStage1 != null)
+            {
+                stage3Result.Chart = chartFromStage1;
+                Logger.LogInformation("Propagated chart from Stage 1 to Final Answer: {ChartType} - {Title}",
+                    chartFromStage1.Type, chartFromStage1.Title);
+            }
+
+            assistantMessage.Stage3 = stage3Result;
+            assistantMessage.Loading = null;
+
+            // Save completed assistant message first (don't block on title generation)
+            if (!_disposed)
+                await Persistence.SaveAssistantMessageAsync(State.CurrentConversation.Id, assistantMessage);
+
+            // Generate title in background for first message (fire-and-forget)
+            if (State.CurrentConversation.Messages.Count == 2)
+            {
+                var conversationId = State.CurrentConversation.Id;
+                var queryForTitle = input;
+                _ = GenerateTitleInBackgroundAsync(conversationId, queryForTitle);
+            }
+        }
+        catch (Exception ex)
+        {
+            if (_disposed) return;
+            assistantMessage.Stage3 = new Stage3Response
+            {
+                Model = "error",
+                Response = $"An error occurred while processing your request: {ex.Message}"
+            };
+            assistantMessage.Loading = null;
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+
+            // Save error message to database
+            if (!_disposed)
+                await Persistence.SaveAssistantMessageAsync(State.CurrentConversation.Id, assistantMessage);
+        }
+        finally
+        {
+            State.IsProcessing = false;
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendMessage();
+        }
+    }
+
+    /// <summary>
+    /// Generates conversation title in the background without blocking the UI.
+    /// </summary>
+    private async Task GenerateTitleInBackgroundAsync(Guid conversationId, string query)
+    {
+        try
+        {
+            var title = await CouncilService.GenerateConversationTitleAsync(query);
+
+            if (_disposed) return;
+
+            // Update the current conversation title if it's still the same conversation
+            if (State.CurrentConversation?.Id == conversationId)
+            {
+                State.CurrentConversation.Title = title;
+
+                // Update sidebar list entry
+                State.UpdateConversation(new ConversationSummary(
+                    conversationId,
+                    title,
+                    State.CurrentConversation.CreatedAt,
+                    DateTime.UtcNow
+                ));
+
+                await InvokeAsync(StateHasChanged);
+            }
+
+            // Persist to database
+            await Persistence.UpdateTitleAsync(conversationId, title);
+
+            Logger.LogInformation("Generated title for conversation {ConversationId}: {Title}", conversationId, title);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to generate title for conversation {ConversationId}", conversationId);
+            // Don't show error to user - title generation is non-critical
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        State.OnChange -= OnStateChanged;
+    }
+}

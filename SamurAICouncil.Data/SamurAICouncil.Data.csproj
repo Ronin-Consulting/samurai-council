@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\SamurAICouncil.Core\SamurAICouncil.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Dapper" Version="2.1.66" />
+    <PackageReference Include="FluentMigrator" Version="7.1.0" />
+    <PackageReference Include="FluentMigrator.Runner" Version="7.1.0" />
+    <PackageReference Include="FluentMigrator.Runner.Postgres" Version="7.1.0" />
+    <PackageReference Include="Npgsql" Version="10.0.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

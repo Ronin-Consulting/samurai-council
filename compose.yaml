@@ -1,0 +1,112 @@
+# SamurAI Council - Docker Compose Configuration
+#
+# Required Environment Variables:
+#   OPENAI_API_KEY      - Your OpenAI API key
+#   ANTHROPIC_API_KEY   - Your Anthropic API key
+#   GOOGLE_API_KEY      - Your Google AI API key (optional)
+#   MSSQL_SA_PASSWORD   - SQL Server SA password (default: YourStrong!Passw0rd)
+#
+# First-time Setup:
+#   1. Download ContosoRetailDW.bak from Microsoft Download Center
+#   2. Place the .bak file in ./data/contoso/
+#   3. Run: docker compose up -d
+#
+# Usage:
+#   docker compose up -d
+#   docker compose logs -f web
+
+services:
+  web:
+    image: samuraicouncil-web
+    build:
+      context: .
+      dockerfile: SamurAICouncil.Web/Dockerfile
+    ports:
+      - "5080:8080"
+    environment:
+      # ASP.NET Core settings
+      - ASPNETCORE_URLS=http://+:8080
+
+      # Database connections
+      - ConnectionStrings__DefaultConnection=Host=db;Database=samuraicouncil;Username=postgres;Password=postgres
+      - ConnectionStrings__ContosoDb=Server=sqlserver;Database=ContosoRetailDW;User Id=samurai_reader;Password=Reader!Pass123;TrustServerCertificate=True
+
+      # API Keys (from host environment)
+      - LlmApiKeys__OpenAI=${OPENAI_API_KEY}
+      - LlmApiKeys__Anthropic=${ANTHROPIC_API_KEY}
+      - LlmApiKeys__Google=${GOOGLE_API_KEY:-}
+
+      # Council configuration - Council Members
+      - Council__CouncilModels__0__Provider=openai
+      - Council__CouncilModels__0__ModelId=gpt-5-mini
+      - Council__CouncilModels__1__Provider=anthropic
+      - Council__CouncilModels__1__ModelId=claude-haiku-4-5-20251001
+      - Council__CouncilModels__2__Provider=google
+      - Council__CouncilModels__2__ModelId=gemini-2.5-flash
+
+      # Council configuration - Chairman (synthesizes final answer)
+      - Council__ChairmanModel__Provider=google
+      - Council__ChairmanModel__ModelId=gemini-2.5-pro
+
+      # Company Data configuration (Text-to-SQL for ContosoRetailDW)
+      - CompanyData__ConnectionString=Server=sqlserver;Database=ContosoRetailDW;User Id=samurai_reader;Password=Reader!Pass123;TrustServerCertificate=True
+      - CompanyData__MaxRows=100
+      - CompanyData__QueryTimeoutSeconds=30
+      - CompanyData__SqlGenerationModel__Provider=anthropic
+      - CompanyData__SqlGenerationModel__ModelId=claude-sonnet-4-5-20250929
+      - CompanyData__SqlGenerationModel__DisplayName=Claude
+    depends_on:
+      db:
+        condition: service_healthy
+      sqlserver:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: samuraicouncil
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD:-YourStrong!Passw0rd}
+      - MSSQL_MEMORY_LIMIT_MB=2048
+      - MSSQL_COLLATION=SQL_Latin1_General_CP1_CI_AS
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+      - ./data/contoso:/var/opt/mssql/backup:ro
+      - ./scripts/sql:/scripts:ro
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$${MSSQL_SA_PASSWORD:-YourStrong!Passw0rd}" -C -Q "SELECT 1" -b
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  sqlserver_data:
+

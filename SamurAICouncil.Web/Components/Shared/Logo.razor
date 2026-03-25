@@ -1,0 +1,78 @@
+@* Logo component - easy to swap out with custom logo later *@
+@* Set LogoPath parameter to use a custom image, otherwise shows icon + text *@
+
+@if (!string.IsNullOrEmpty(LogoPath))
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="@Class">
+        <img src="@LogoPath" alt="SamurAI Council" class="logo-image" style="@GetImageStyle()" />
+        @if (ShowText)
+        {
+            <MudText Typo="@TextTypo" Color="@TextColor" Class="logo-text">@Text</MudText>
+        }
+    </MudStack>
+}
+else
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="@Class">
+        <MudIcon Icon="@Icons.Material.Filled.Groups"
+                 Size="@IconSize"
+                 Color="Color.Primary"
+                 Class="logo-icon" />
+        @if (ShowText)
+        {
+            <MudText Typo="@TextTypo" Color="@TextColor" Class="logo-text">@Text</MudText>
+        }
+    </MudStack>
+}
+
+@code {
+    /// <summary>
+    /// Path to custom logo image (SVG or PNG). If null, shows default icon.
+    /// </summary>
+    [Parameter]
+    public string? LogoPath { get; set; }
+
+    /// <summary>
+    /// Whether to show text alongside the logo/icon.
+    /// </summary>
+    [Parameter]
+    public bool ShowText { get; set; } = true;
+
+    /// <summary>
+    /// The text to display (defaults to "SamurAI Council").
+    /// </summary>
+    [Parameter]
+    public string Text { get; set; } = "SamurAI Council";
+
+    /// <summary>
+    /// Size of the default icon (when no custom logo).
+    /// </summary>
+    [Parameter]
+    public Size IconSize { get; set; } = Size.Small;
+
+    /// <summary>
+    /// Height of custom logo image in pixels.
+    /// </summary>
+    [Parameter]
+    public int ImageHeight { get; set; } = 24;
+
+    /// <summary>
+    /// Typography for the text.
+    /// </summary>
+    [Parameter]
+    public Typo TextTypo { get; set; } = Typo.subtitle1;
+
+    /// <summary>
+    /// Color for the text. Use Color.Inherit in app bar context.
+    /// </summary>
+    [Parameter]
+    public Color TextColor { get; set; } = Color.Primary;
+
+    /// <summary>
+    /// Additional CSS class.
+    /// </summary>
+    [Parameter]
+    public string? Class { get; set; }
+
+    private string GetImageStyle() => $"height: {ImageHeight}px; width: auto;";
+}

@@ -1,0 +1,158 @@
+@inherits LayoutComponentBase
+@inject ThemeService ThemeService
+@implements IDisposable
+
+<MudThemeProvider @ref="_mudThemeProvider" Theme="_theme" @bind-IsDarkMode="@_isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    @* App bar *@
+    <MudAppBar Elevation="2">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                       Color="Color.Inherit"
+                       Edge="Edge.Start"
+                       OnClick="@ToggleDrawer" />
+        <div class="d-flex align-center ml-3">
+            <img src="logo.png" alt="Ronin Consulting" style="height: 32px; width: auto;" />
+        </div>
+        <MudSpacer />
+        <MudTooltip Text="@(_isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode")">
+            <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                           Color="Color.Inherit"
+                           OnClick="@ToggleTheme" />
+        </MudTooltip>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen"
+               ClipMode="DrawerClipMode.Always"
+               Elevation="2"
+               Variant="DrawerVariant.Responsive"
+               Breakpoint="Breakpoint.Md">
+        <Sidebar OnNewChat="@HandleNewChat" />
+    </MudDrawer>
+
+    <MudMainContent>
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+@code {
+    private bool _drawerOpen = true;
+    private bool _isDarkMode = true;
+    private MudThemeProvider? _mudThemeProvider;
+
+    protected override void OnInitialized()
+    {
+        _isDarkMode = ThemeService.IsDarkMode;
+        ThemeService.OnThemeChanged += HandleThemeChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _mudThemeProvider != null)
+        {
+            // Check system preference if no saved preference
+            var systemPrefersDark = await _mudThemeProvider.GetSystemDarkModeAsync();
+            ThemeService.InitializeFromSystemPreference(systemPrefersDark);
+            _isDarkMode = ThemeService.IsDarkMode;
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    private void ToggleTheme()
+    {
+        ThemeService.ToggleTheme();
+        _isDarkMode = ThemeService.IsDarkMode;
+    }
+
+    private void HandleThemeChanged()
+    {
+        _isDarkMode = ThemeService.IsDarkMode;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleNewChat()
+    {
+        // On smaller screens, close drawer after new chat
+        _drawerOpen = false;
+    }
+
+    public void Dispose()
+    {
+        ThemeService.OnThemeChanged -= HandleThemeChanged;
+    }
+
+    // Custom theme based on Ronin Consulting website
+    private readonly MudTheme _theme = new()
+    {
+        // Light palette inspired by ronin.consulting
+        PaletteLight = new PaletteLight()
+        {
+            Primary = "#c41e3a",           // Ronin crimson red
+            PrimaryContrastText = "#ffffff",
+            Secondary = "#6b6b6b",          // Medium gray
+            SecondaryContrastText = "#ffffff",
+            Tertiary = "#1a1a2e",           // Dark navy
+            Background = "#ffffff",         // White background
+            Surface = "#ffffff",            // White surface
+            DrawerBackground = "#f8f9fa",   // Light gray sidebar
+            AppbarBackground = "#ffffff",   // White app bar (like Ronin site)
+            AppbarText = "#2d2d2d",         // Dark text on app bar
+            TextPrimary = "#2d2d2d",        // Dark charcoal text
+            TextSecondary = "#6b6b6b",      // Medium gray text
+            ActionDefault = "#6b6b6b",
+            ActionDisabled = "#9e9e9e80",
+            Divider = "#e0e0e0",
+            DividerLight = "#f0f0f0",
+            TableLines = "#e0e0e0",
+            LinesDefault = "#e0e0e0",
+            BackgroundGray = "#f5f5f5"      // Light gray for cards
+        },
+        // Dark palette - inverted light theme with same red accent
+        // Lightened by ~5% for improved readability
+        PaletteDark = new PaletteDark()
+        {
+            Primary = "#c41e3a",           // Same Ronin crimson red
+            PrimaryContrastText = "#ffffff",
+            Secondary = "#9e9e9e",          // Lighter gray for dark mode
+            SecondaryContrastText = "#000000",
+            Tertiary = "#e8e8e8",           // Light for contrast
+            Black = "#000000",
+            White = "#ffffff",
+            Background = "#1a1a1a",         // Dark background (5% lighter)
+            Surface = "#272727",            // Surface (5% lighter)
+            DrawerBackground = "#232323",   // Dark sidebar (5% lighter)
+            AppbarBackground = "#232323",   // Dark app bar (5% lighter)
+            AppbarText = "#ffffff",         // White text on app bar
+            TextPrimary = "#f5f5f5",        // Off-white text (easier on eyes)
+            TextSecondary = "#b0b0b0",      // Medium gray text
+            ActionDefault = "#b0b0b0",
+            ActionDisabled = "#6b6b6b80",
+            Divider = "#3c3c3c",            // Dark dividers (5% lighter)
+            DividerLight = "#333333",       // (5% lighter)
+            TableLines = "#3c3c3c",         // (5% lighter)
+            LinesDefault = "#3c3c3c",       // (5% lighter)
+            BackgroundGray = "#2d2d2d",     // Dark gray for cards/bubbles (5% lighter)
+            Info = "#64b5f6",               // Lighter blue for visibility
+            Success = "#81c784",            // Lighter green
+            Warning = "#ffb74d",            // Lighter orange
+            Error = "#e57373"               // Lighter red for errors
+        },
+        LayoutProperties = new LayoutProperties
+        {
+            DrawerWidthLeft = "260px",
+            DrawerMiniWidthLeft = "56px",
+            DefaultBorderRadius = "4px"
+        }
+    };
+}

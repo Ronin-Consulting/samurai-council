@@ -1,0 +1,418 @@
+@implements IDisposable
+@inject ConversationState State
+@inject ConversationService Persistence
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<MudDrawerHeader Class="pa-4">
+    @if (_isEditMode)
+    {
+        <MudStack Row="true" Spacing="2" Style="width: 100%;">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       OnClick="ExitEditMode">
+                Done
+            </MudButton>
+        </MudStack>
+    }
+    else
+    {
+        <MudStack Row="true" Spacing="2" Style="width: 100%;">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       FullWidth="true"
+                       OnClick="StartNewConversation">
+                New Chat
+            </MudButton>
+            @if (State.Conversations.Count > 0)
+            {
+                <MudMenu Icon="@Icons.Material.Filled.MoreVert"
+                         Variant="Variant.Outlined"
+                         Color="Color.Default"
+                         Size="Size.Medium"
+                         AnchorOrigin="Origin.BottomRight"
+                         TransformOrigin="Origin.TopRight">
+                    <MudMenuItem Icon="@Icons.Material.Filled.Edit"
+                                 OnClick="EnterEditMode">
+                        Select &amp; Delete
+                    </MudMenuItem>
+                </MudMenu>
+            }
+        </MudStack>
+    }
+</MudDrawerHeader>
+
+@if (_isEditMode && State.Conversations.Count > 0)
+{
+    <div class="px-3 pb-2">
+        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+            <MudCheckBox T="bool"
+                         Value="@IsAllSelected()"
+                         ValueChanged="@(v => ToggleSelectAll(v))"
+                         Label="Select All"
+                         Size="Size.Small"
+                         Dense="true"
+                         Color="Color.Primary" />
+            @if (_selectedIds.Count > 0)
+            {
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.Delete"
+                           OnClick="PromptBulkDelete">
+                    Delete (@_selectedIds.Count)
+                </MudButton>
+            }
+        </MudStack>
+    </div>
+}
+
+<MudNavMenu Class="flex-grow-1 overflow-auto px-3">
+    @if (_isLoading)
+    {
+        @* Skeleton loaders while loading *@
+        @for (var i = 0; i < 5; i++)
+        {
+            <div class="skeleton-conversation">
+                <div class="skeleton skeleton-title"></div>
+                <div class="skeleton skeleton-date"></div>
+            </div>
+        }
+    }
+    else if (State.Conversations.Count == 0)
+    {
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Align="Align.Center" Class="pa-3 fade-in">
+            No conversations yet
+        </MudText>
+    }
+    else
+    {
+        @foreach (var conversation in State.Conversations)
+        {
+            <MudNavLink OnClick="() => OnConversationClick(conversation)"
+                        Class="@($"conversation-link fade-in {(IsSelected(conversation.Id) ? "mud-nav-link-active" : "")}")">
+                <div class="conversation-content">
+                    @if (_isEditMode)
+                    {
+                        <div class="checkbox-container" @onclick:stopPropagation="true">
+                            <MudCheckBox T="bool"
+                                         Value="@_selectedIds.Contains(conversation.Id)"
+                                         ValueChanged="@(v => ToggleSelection(conversation.Id, v))"
+                                         Size="Size.Small"
+                                         Dense="true"
+                                         Color="Color.Primary" />
+                        </div>
+                    }
+                    <MudStack Spacing="0" Class="conversation-text">
+                        <MudText Typo="Typo.body2" Class="conversation-title">
+                            @conversation.Title
+                        </MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @FormatDate(conversation.CreatedAt)
+                        </MudText>
+                    </MudStack>
+                    @if (!_isEditMode)
+                    {
+                        <div class="delete-btn-container" @onclick:stopPropagation="true">
+                            <MudTooltip Text="Delete conversation">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                               Size="Size.Small"
+                                               Color="Color.Error"
+                                               Class="delete-btn"
+                                               OnClick="@(() => PromptDelete(conversation))" />
+                            </MudTooltip>
+                        </div>
+                    }
+                </div>
+            </MudNavLink>
+        }
+    }
+</MudNavMenu>
+
+@* Single Delete Confirmation Dialog *@
+<MudDialog @bind-Visible="_showDeleteDialog" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Delete" Class="mr-2" Style="vertical-align: middle;" />
+            Delete Conversation
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText Class="mb-2">Are you sure you want to delete this conversation?</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">
+            "@(_conversationToDelete?.Title ?? "Untitled")"
+        </MudText>
+        <MudText Typo="Typo.caption" Color="Color.Warning" Class="mt-3">
+            This action cannot be undone.
+        </MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CancelDelete" Variant="Variant.Text">Cancel</MudButton>
+        <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="ConfirmDelete">Delete</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* Bulk Delete Confirmation Dialog *@
+<MudDialog @bind-Visible="_showBulkDeleteDialog" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.DeleteSweep" Class="mr-2" Style="vertical-align: middle;" />
+            Delete @_selectedIds.Count Conversation@(_selectedIds.Count == 1 ? "" : "s")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText Class="mb-2">
+            Are you sure you want to delete @_selectedIds.Count conversation@(_selectedIds.Count == 1 ? "" : "s")?
+        </MudText>
+        <MudText Typo="Typo.caption" Color="Color.Warning" Class="mt-3">
+            This action cannot be undone.
+        </MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CancelBulkDelete" Variant="Variant.Text">Cancel</MudButton>
+        <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="ConfirmBulkDelete">
+            Delete @_selectedIds.Count
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<div style="padding: 0.5rem 1rem; display: flex; align-items: center; justify-content: center; gap: 0.75rem; border-top: 1px solid var(--mud-palette-divider);">
+    <img src="helmet.svg" alt="Logo" style="height: 24px; width: auto;" />
+    <MudText Typo="Typo.caption" Color="Color.Secondary">v1.0.0</MudText>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback OnNewChat { get; set; }
+
+    private bool _disposed;
+    private bool _isLoading = true;
+
+    // Edit mode state
+    private bool _isEditMode;
+    private readonly HashSet<Guid> _selectedIds = new();
+
+    // Single delete dialog state
+    private bool _showDeleteDialog;
+    private ConversationSummary? _conversationToDelete;
+
+    // Bulk delete dialog state
+    private bool _showBulkDeleteDialog;
+
+    private readonly DialogOptions _dialogOptions = new()
+    {
+        CloseOnEscapeKey = true,
+        BackdropClick = false,
+        MaxWidth = MaxWidth.ExtraSmall,
+        FullWidth = true
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        State.OnChange += OnStateChanged;
+        await LoadConversationsAsync();
+    }
+
+    private void OnStateChanged()
+    {
+        if (_disposed) return;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadConversationsAsync()
+    {
+        _isLoading = true;
+        var conversations = await Persistence.ListConversationsAsync();
+        State.SetConversations(conversations);
+        _isLoading = false;
+        if (_disposed) return;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private bool IsSelected(Guid id) => State.CurrentConversation?.Id == id;
+
+    private async Task StartNewConversation()
+    {
+        State.CurrentConversation = null;
+        Navigation.NavigateTo("/chat", forceLoad: false);
+        await OnNewChat.InvokeAsync();
+    }
+
+    private void SelectConversation(Guid id)
+    {
+        Navigation.NavigateTo($"/chat/{id}", forceLoad: false);
+    }
+
+    // Edit mode methods
+    private void EnterEditMode()
+    {
+        _isEditMode = true;
+        _selectedIds.Clear();
+    }
+
+    private void ExitEditMode()
+    {
+        _isEditMode = false;
+        _selectedIds.Clear();
+    }
+
+    private void OnConversationClick(ConversationSummary conversation)
+    {
+        if (_isEditMode)
+        {
+            ToggleSelection(conversation.Id, !_selectedIds.Contains(conversation.Id));
+        }
+        else
+        {
+            SelectConversation(conversation.Id);
+        }
+    }
+
+    private void ToggleSelection(Guid id, bool selected)
+    {
+        if (selected)
+            _selectedIds.Add(id);
+        else
+            _selectedIds.Remove(id);
+    }
+
+    private bool IsAllSelected()
+    {
+        return State.Conversations.Count > 0 && _selectedIds.Count == State.Conversations.Count;
+    }
+
+    private void ToggleSelectAll(bool selectAll)
+    {
+        _selectedIds.Clear();
+        if (selectAll)
+        {
+            foreach (var conv in State.Conversations)
+            {
+                _selectedIds.Add(conv.Id);
+            }
+        }
+    }
+
+    // Single delete methods
+    private void PromptDelete(ConversationSummary conversation)
+    {
+        _conversationToDelete = conversation;
+        _showDeleteDialog = true;
+    }
+
+    private void CancelDelete()
+    {
+        _showDeleteDialog = false;
+        _conversationToDelete = null;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (_conversationToDelete == null) return;
+
+        var conversationId = _conversationToDelete.Id;
+        var title = _conversationToDelete.Title;
+        var wasCurrentConversation = IsSelected(conversationId);
+
+        // Close dialog immediately (optimistic)
+        _showDeleteDialog = false;
+
+        // Optimistic UI update - remove from state immediately
+        State.RemoveConversation(conversationId);
+
+        // If deleting current conversation, navigate away
+        if (wasCurrentConversation)
+        {
+            Navigation.NavigateTo("/chat", forceLoad: false);
+        }
+
+        try
+        {
+            // Perform actual deletion
+            await Persistence.DeleteConversationAsync(conversationId);
+            Snackbar.Add($"Deleted \"{title}\"", Severity.Success);
+        }
+        catch (Exception)
+        {
+            // Rollback on error - reload the list
+            Snackbar.Add("Failed to delete conversation", Severity.Error);
+            await LoadConversationsAsync();
+        }
+        finally
+        {
+            _conversationToDelete = null;
+        }
+    }
+
+    // Bulk delete methods
+    private void PromptBulkDelete()
+    {
+        if (_selectedIds.Count == 0) return;
+        _showBulkDeleteDialog = true;
+    }
+
+    private void CancelBulkDelete()
+    {
+        _showBulkDeleteDialog = false;
+    }
+
+    private async Task ConfirmBulkDelete()
+    {
+        if (_selectedIds.Count == 0) return;
+
+        var idsToDelete = _selectedIds.ToList();
+        var count = idsToDelete.Count;
+        var currentConversationDeleted = State.CurrentConversation != null &&
+                                          idsToDelete.Contains(State.CurrentConversation.Id);
+
+        // Close dialog immediately (optimistic)
+        _showBulkDeleteDialog = false;
+
+        // Optimistic UI update - remove from state immediately
+        foreach (var id in idsToDelete)
+        {
+            State.RemoveConversation(id);
+        }
+
+        // Exit edit mode and clear selection
+        _isEditMode = false;
+        _selectedIds.Clear();
+
+        // If current conversation was deleted, navigate away
+        if (currentConversationDeleted)
+        {
+            Navigation.NavigateTo("/chat", forceLoad: false);
+        }
+
+        try
+        {
+            // Perform actual deletion
+            var deletedCount = await Persistence.DeleteConversationsAsync(idsToDelete);
+            Snackbar.Add($"Deleted {deletedCount} conversation{(deletedCount == 1 ? "" : "s")}", Severity.Success);
+        }
+        catch (Exception)
+        {
+            // Rollback on error - reload the list
+            Snackbar.Add("Failed to delete conversations", Severity.Error);
+            await LoadConversationsAsync();
+        }
+    }
+
+    private static string FormatDate(DateTime date)
+    {
+        var today = DateTime.UtcNow.Date;
+        if (date.Date == today)
+            return "Today";
+        if (date.Date == today.AddDays(-1))
+            return "Yesterday";
+        return date.ToString("MMM d");
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        State.OnChange -= OnStateChanged;
+    }
+}

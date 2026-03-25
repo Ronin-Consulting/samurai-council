@@ -1,0 +1,122 @@
+@using System.Text.Json
+@using SamurAICouncil.Core.Models
+
+@if (ToolUsages == null || ToolUsages.Count == 0)
+{
+    return;
+}
+
+<MudExpansionPanels Class="mb-3">
+    <MudExpansionPanel>
+        <TitleContent>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.Build" Size="Size.Small" Color="Color.Inherit" />
+                <MudText Typo="Typo.body2">
+                    <strong>Tool Usage</strong> - @ToolUsages.Count tool call(s)
+                </MudText>
+            </MudStack>
+        </TitleContent>
+        <ChildContent>
+            <MudStack Spacing="2">
+                @foreach (var usage in ToolUsages)
+                {
+                    <MudPaper Class="pa-3" Elevation="0" Style="background-color: var(--mud-palette-background-gray); border-left: 3px solid var(--mud-palette-lines-default);">
+                        <MudStack Spacing="2">
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                <MudChip T="string"
+                                         Size="Size.Small"
+                                         Color="Color.Default"
+                                         Variant="Variant.Outlined"
+                                         Icon="@Icons.Material.Filled.Functions">
+                                    @usage.ToolName
+                                </MudChip>
+                            </MudStack>
+
+                            @if (!string.IsNullOrEmpty(usage.Input))
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    <strong>Input:</strong> @GetInputSummary(usage.Input)
+                                </MudText>
+                            }
+
+                            @if (!string.IsNullOrEmpty(usage.Output))
+                            {
+                                <MudExpansionPanels>
+                                    <MudExpansionPanel Text="View Result" Dense="true">
+                                        <MudPaper Class="pa-2" Elevation="0" Style="background-color: var(--mud-palette-surface); max-height: 200px; overflow-y: auto;">
+                                            @if (IsJsonResult(usage.Output))
+                                            {
+                                                <pre style="font-size: 0.75rem; margin: 0; white-space: pre-wrap; word-break: break-word;">@FormatJson(usage.Output)</pre>
+                                            }
+                                            else
+                                            {
+                                                <MudText Typo="Typo.body2">@usage.Output</MudText>
+                                            }
+                                        </MudPaper>
+                                    </MudExpansionPanel>
+                                </MudExpansionPanels>
+                            }
+                        </MudStack>
+                    </MudPaper>
+                }
+            </MudStack>
+        </ChildContent>
+    </MudExpansionPanel>
+</MudExpansionPanels>
+
+@code {
+    [Parameter]
+    public List<ToolUsage>? ToolUsages { get; set; }
+
+    private static string GetInputSummary(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return string.Empty;
+
+        try
+        {
+            // Try to parse as JSON and extract a "query" property
+            using var doc = JsonDocument.Parse(input);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+                doc.RootElement.TryGetProperty("query", out var queryProp))
+            {
+                var query = queryProp.GetString();
+                if (!string.IsNullOrEmpty(query))
+                {
+                    return query.Length > 100 ? query[..100] + "..." : query;
+                }
+            }
+        }
+        catch
+        {
+            // Not JSON, return as-is
+        }
+
+        return input.Length > 100 ? input[..100] + "..." : input;
+    }
+
+    private static bool IsJsonResult(string output)
+    {
+        if (string.IsNullOrWhiteSpace(output))
+            return false;
+
+        var trimmed = output.TrimStart();
+        return trimmed.StartsWith("{") || trimmed.StartsWith("[");
+    }
+
+    private static string FormatJson(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return JsonSerializer.Serialize(doc, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+        }
+        catch
+        {
+            return json;
+        }
+    }
+}

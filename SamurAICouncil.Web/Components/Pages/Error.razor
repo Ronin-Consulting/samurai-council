@@ -1,0 +1,58 @@
+@page "/Error"
+@using System.Diagnostics
+@inject IHostEnvironment Environment
+
+<PageTitle>Error - SamurAI Council</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="d-flex align-center justify-center" Style="min-height: 100vh;">
+    <MudPaper Class="pa-8" Elevation="4" Style="text-align: center; max-width: 500px;">
+        <MudAvatar Color="Color.Error" Size="Size.Large" Class="mb-4" Style="width: 80px; height: 80px;">
+            <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Style="font-size: 3rem;" />
+        </MudAvatar>
+
+        <MudText Typo="Typo.h5" Class="mb-2">Oops! Something went wrong</MudText>
+
+        <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-6">
+            We encountered an unexpected error while processing your request.
+            Please try again or return to the home page.
+        </MudText>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Size="Size.Large"
+                   StartIcon="@Icons.Material.Filled.Home"
+                   Href="/"
+                   Class="mb-4">
+            Return Home
+        </MudButton>
+
+        @if (ShowRequestId)
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-4">
+                Request ID: <code>@RequestId</code>
+            </MudText>
+        }
+
+        @if (Environment.IsDevelopment())
+        {
+            <MudExpansionPanels Class="mt-4" Style="text-align: left;">
+                <MudExpansionPanel Text="Developer Information">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Enable the <strong>Development</strong> environment for detailed error information.
+                        Set <code>ASPNETCORE_ENVIRONMENT=Development</code> and restart the app.
+                    </MudText>
+                </MudExpansionPanel>
+            </MudExpansionPanels>
+        }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+
+    protected override void OnInitialized() =>
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}
