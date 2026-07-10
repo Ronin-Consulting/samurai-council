@@ -1,6 +1,8 @@
+using System.ClientModel;
 using System.Diagnostics;
 using System.Text.Json;
 using Anthropic;
+using OpenAI;
 using Anthropic.Models.Messages;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -175,8 +177,26 @@ public sealed class SemanticKernelLlmService : ILlmService, IDisposable
     {
         _logger.LogDebug("Creating OpenAI Kernel for model {ModelId}", modelId);
         var builder = Kernel.CreateBuilder();
-        builder.AddOpenAIChatCompletion(modelId, _apiKeys.OpenAI!);
+        AddOpenAiChatCompletion(builder, modelId);
         return builder.Build();
+    }
+
+    /// <summary>
+    /// Registers OpenAI chat completion on the kernel builder, honoring an optional
+    /// custom endpoint (e.g., a LiteLLM/Azure OpenAI-compatible gateway).
+    /// </summary>
+    private void AddOpenAiChatCompletion(IKernelBuilder builder, string modelId)
+    {
+        if (!string.IsNullOrWhiteSpace(_apiKeys.OpenAIEndpoint))
+        {
+            var options = new OpenAIClientOptions { Endpoint = new Uri(_apiKeys.OpenAIEndpoint) };
+            var client = new OpenAIClient(new ApiKeyCredential(_apiKeys.OpenAI!), options);
+            builder.AddOpenAIChatCompletion(modelId, client);
+        }
+        else
+        {
+            builder.AddOpenAIChatCompletion(modelId, _apiKeys.OpenAI!);
+        }
     }
 
     private Kernel CreateGoogleKernel(string modelId)
@@ -393,7 +413,7 @@ public sealed class SemanticKernelLlmService : ILlmService, IDisposable
 
         // Create kernel with OpenAI and register tools as plugins
         var builder = Kernel.CreateBuilder();
-        builder.AddOpenAIChatCompletion(modelId, _apiKeys.OpenAI!);
+        AddOpenAiChatCompletion(builder, modelId);
         var kernel = builder.Build();
 
         // Create wrapper functions for each tool and register them

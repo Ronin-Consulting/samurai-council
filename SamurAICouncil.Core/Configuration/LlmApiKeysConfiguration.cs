@@ -14,6 +14,12 @@ public class LlmApiKeysConfiguration
     public string? OpenAI { get; set; }
 
     /// <summary>
+    /// Optional custom endpoint for the OpenAI-compatible API (e.g., a LiteLLM/Azure gateway).
+    /// When set, all "openai" provider calls are routed here instead of api.openai.com.
+    /// </summary>
+    public string? OpenAIEndpoint { get; set; }
+
+    /// <summary>
     /// Anthropic API key for Claude models.
     /// </summary>
     public string? Anthropic { get; set; }

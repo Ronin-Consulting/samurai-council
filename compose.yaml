@@ -31,30 +31,45 @@ services:
       - ConnectionStrings__DefaultConnection=Host=db;Database=samuraicouncil;Username=postgres;Password=postgres
       - ConnectionStrings__ContosoDb=Server=sqlserver;Database=ContosoRetailDW;User Id=samurai_reader;Password=Reader!Pass123;TrustServerCertificate=True
 
-      # API Keys (from host environment)
+      # API Keys / endpoint (from host environment)
+      # Routed through the FortyAU LiteLLM gateway (OpenAI-compatible).
+      # The "OpenAI" key holds the gateway token; all council roles use the
+      # "openai" provider pointed at OpenAIEndpoint below.
       - LlmApiKeys__OpenAI=${OPENAI_API_KEY}
-      - LlmApiKeys__Anthropic=${ANTHROPIC_API_KEY}
+      - LlmApiKeys__OpenAIEndpoint=https://llm.fortyau.com/v1
+      - LlmApiKeys__Anthropic=${ANTHROPIC_API_KEY:-}
       - LlmApiKeys__Google=${GOOGLE_API_KEY:-}
 
-      # Council configuration - Council Members
+      # Council configuration - Council Members (all via gateway)
+      # NOTE: Claude models are currently unavailable on the gateway, so the
+      # council uses GPT + Gemini for diversity.
       - Council__CouncilModels__0__Provider=openai
-      - Council__CouncilModels__0__ModelId=gpt-5-mini
-      - Council__CouncilModels__1__Provider=anthropic
-      - Council__CouncilModels__1__ModelId=claude-haiku-4-5-20251001
-      - Council__CouncilModels__2__Provider=google
+      - Council__CouncilModels__0__ModelId=gpt-4o
+      - Council__CouncilModels__0__DisplayName=GPT-4o
+      - Council__CouncilModels__1__Provider=openai
+      - Council__CouncilModels__1__ModelId=gpt-4.1
+      - Council__CouncilModels__1__DisplayName=GPT-4.1
+      - Council__CouncilModels__2__Provider=openai
       - Council__CouncilModels__2__ModelId=gemini-2.5-flash
+      - Council__CouncilModels__2__DisplayName=Gemini 2.5 Flash
 
       # Council configuration - Chairman (synthesizes final answer)
-      - Council__ChairmanModel__Provider=google
+      - Council__ChairmanModel__Provider=openai
       - Council__ChairmanModel__ModelId=gemini-2.5-pro
+      - Council__ChairmanModel__DisplayName=Gemini 2.5 Pro
+
+      # Council configuration - Title generation (lightweight)
+      - Council__TitleGenerationModel__Provider=openai
+      - Council__TitleGenerationModel__ModelId=gpt-4o-mini
+      - Council__TitleGenerationModel__DisplayName=GPT-4o mini
 
       # Company Data configuration (Text-to-SQL for ContosoRetailDW)
       - CompanyData__ConnectionString=Server=sqlserver;Database=ContosoRetailDW;User Id=samurai_reader;Password=Reader!Pass123;TrustServerCertificate=True
       - CompanyData__MaxRows=100
       - CompanyData__QueryTimeoutSeconds=30
-      - CompanyData__SqlGenerationModel__Provider=anthropic
-      - CompanyData__SqlGenerationModel__ModelId=claude-sonnet-4-5-20250929
-      - CompanyData__SqlGenerationModel__DisplayName=Claude
+      - CompanyData__SqlGenerationModel__Provider=openai
+      - CompanyData__SqlGenerationModel__ModelId=gpt-4o
+      - CompanyData__SqlGenerationModel__DisplayName=GPT-4o (SQL)
     depends_on:
       db:
         condition: service_healthy
@@ -62,7 +77,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
       interval: 30s
       timeout: 10s
       retries: 3
