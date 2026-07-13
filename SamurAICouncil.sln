@@ -21,6 +21,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SamurAICouncil.Data.Tests",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SamurAICouncil.Web.Tests", "SamurAICouncil.Web.Tests\SamurAICouncil.Web.Tests.csproj", "{12E8EED1-C74C-4584-9DA5-80439C627567}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SamurAICouncil.Api", "SamurAICouncil.Api\SamurAICouncil.Api.csproj", "{E6C2DF1A-5C2C-4414-91DA-769A6D353CA1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -103,6 +105,18 @@ Global
 		{12E8EED1-C74C-4584-9DA5-80439C627567}.Release|x64.Build.0 = Release|Any CPU
 		{12E8EED1-C74C-4584-9DA5-80439C627567}.Release|x86.ActiveCfg = Release|Any CPU
 		{12E8EED1-C74C-4584-9DA5-80439C627567}.Release|x86.Build.0 = Release|Any CPU
+		{E6C2DF1A-5C2C-4414-91DA-769A6D353CA1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E6C2DF1A-5C2C-4414-91DA-769A6D353CA1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E6C2DF1A-5C2C-4414-91DA-769A6D353CA1}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E6C2DF1A-5C2C-4414-91DA-769A6D353CA1}.Debug|x64.Build.0 = Debug|Any CPU
+		{E6C2DF1A-5C2C-4414-91DA-769A6D353CA1}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E6C2DF1A-5C2C-4414-91DA-769A6D353CA1}.Debug|x86.Build.0 = Debug|Any CPU
+		{E6C2DF1A-5C2C-4414-91DA-769A6D353CA1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E6C2DF1A-5C2C-4414-91DA-769A6D353CA1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E6C2DF1A-5C2C-4414-91DA-769A6D353CA1}.Release|x64.ActiveCfg = Release|Any CPU
+		{E6C2DF1A-5C2C-4414-91DA-769A6D353CA1}.Release|x64.Build.0 = Release|Any CPU
+		{E6C2DF1A-5C2C-4414-91DA-769A6D353CA1}.Release|x86.ActiveCfg = Release|Any CPU
+		{E6C2DF1A-5C2C-4414-91DA-769A6D353CA1}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

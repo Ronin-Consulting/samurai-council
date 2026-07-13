@@ -20,7 +20,7 @@ services:
     image: samuraicouncil-web
     build:
       context: .
-      dockerfile: SamurAICouncil.Web/Dockerfile
+      dockerfile: SamurAICouncil.Api/Dockerfile
     ports:
       - "5080:8080"
     environment:
@@ -54,9 +54,11 @@ services:
       - Council__CouncilModels__2__DisplayName=Gemini 2.5 Flash
 
       # Council configuration - Chairman (synthesizes final answer)
+      # Claude Opus 4.1 via the gateway (OpenAI-compatible). Other Claude
+      # models are currently unavailable on the gateway.
       - Council__ChairmanModel__Provider=openai
-      - Council__ChairmanModel__ModelId=gemini-2.5-pro
-      - Council__ChairmanModel__DisplayName=Gemini 2.5 Pro
+      - Council__ChairmanModel__ModelId=claude-opus-4-1
+      - Council__ChairmanModel__DisplayName=Claude Opus 4.1
 
       # Council configuration - Title generation (lightweight)
       - Council__TitleGenerationModel__Provider=openai

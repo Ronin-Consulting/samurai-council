@@ -23,3 +23,10 @@
 **/values.dev.yaml
 LICENSE
 README.md
+data/
+LlmCouncil/
+docs/
+**/*.bak
+clients/angular/dist
+clients/angular/.angular
+clients/**/coverage

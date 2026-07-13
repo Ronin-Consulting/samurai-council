@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using SamurAICouncil.Core.Models;
 
 namespace SamurAICouncil.Core.Interfaces;
@@ -61,20 +62,24 @@ public class ToolUsage
     /// <summary>
     /// Name of the tool that was called.
     /// </summary>
+    [JsonPropertyName("tool_name")]
     public required string ToolName { get; set; }
 
     /// <summary>
     /// Input provided to the tool.
     /// </summary>
+    [JsonPropertyName("input")]
     public required string Input { get; set; }
 
     /// <summary>
     /// Output from the tool execution.
     /// </summary>
+    [JsonPropertyName("output")]
     public required string Output { get; set; }
 
     /// <summary>
     /// Optional chart recommendation based on the tool output.
     /// </summary>
+    [JsonPropertyName("chart")]
     public ChartRecommendation? Chart { get; set; }
 }

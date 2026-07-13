@@ -1,0 +1,18 @@
+<div class="flex h-screen">
+  <aside class="hidden w-64 shrink-0 border-r border-neutral-200 dark:border-neutral-800 md:block">
+    <app-sidebar />
+  </aside>
+  <div class="flex min-w-0 flex-1 flex-col">
+    <header class="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 px-4 py-3">
+      <span class="font-bold text-red-600">&#9876; SamurAI Council</span>
+      <button (click)="theme.toggle()"
+        class="rounded-lg p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+        aria-label="Toggle theme">
+        {{ theme.isDark() ? '☀' : '🌙' }}
+      </button>
+    </header>
+    <main class="min-h-0 flex-1">
+      <router-outlet />
+    </main>
+  </div>
+</div>

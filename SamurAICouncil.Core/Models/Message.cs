@@ -7,13 +7,15 @@ namespace SamurAICouncil.Core.Models;
 [JsonDerivedType(typeof(AssistantMessage), "assistant")]
 public abstract class Message
 {
-    [JsonPropertyName("role")]
+    // Serialized on the wire via the polymorphic "role" discriminator above;
+    // ignore the property itself to avoid a discriminator/property name clash.
+    [JsonIgnore]
     public abstract string Role { get; }
 }
 
 public class UserMessage : Message
 {
-    [JsonPropertyName("role")]
+    [JsonIgnore]
     public override string Role => "user";
 
     [JsonPropertyName("content")]
@@ -22,7 +24,7 @@ public class UserMessage : Message
 
 public class AssistantMessage : Message
 {
-    [JsonPropertyName("role")]
+    [JsonIgnore]
     public override string Role => "assistant";
 
     [JsonPropertyName("stage1")]
