@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SamurAI Council is a C# Blazor Server application that implements a 3-stage LLM deliberation pattern where multiple AI models collaborate to provide higher-quality responses. Originally converted from the LlmCouncil Python/React reference implementation.
+SamurAI Council implements a 3-stage LLM deliberation pattern where multiple AI models collaborate to provide higher-quality responses. It is an **Angular SPA** frontend (`clients/angular`) talking over HTTP + Server-Sent Events to a **.NET Web API** (`SamurAICouncil.Api`) that hosts the domain logic in `SamurAICouncil.Core` / `SamurAICouncil.Data`. In production the API serves the built Angular app as static files (single origin). Originally a Blazor Server app (since migrated) and before that the LlmCouncil Python/React reference implementation.
 
 ## Project Structure
 
@@ -178,11 +178,14 @@ dotnet build
 # Run all tests (360 total)
 dotnet test
 
-# Run web project
-dotnet run --project SamurAICouncil.Web
+# Run the API (backend)
+dotnet run --project SamurAICouncil.Api
 
-# Run with hot reload
-dotnet watch --project SamurAICouncil.Web
+# Run the Angular client (frontend) — proxies /api to the API on :5131
+cd clients/angular && ng serve   # http://localhost:4200
+
+# Note: run the Node/Angular and .NET tooling inside WSL2 on this host
+# (native Windows binaries crash with 0xC000001D — see the run-setup memory).
 ```
 
 ### Docker Deployment
