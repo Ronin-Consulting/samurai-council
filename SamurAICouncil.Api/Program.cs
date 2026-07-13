@@ -32,7 +32,7 @@ builder.Services.Configure<CouncilConfiguration>(
 builder.Services.Configure<CompanyDataConfiguration>(
     builder.Configuration.GetSection(CompanyDataConfiguration.SectionName));
 
-// Core services (mirror SamurAICouncil.Web/Program.cs)
+// Core services
 builder.Services.AddSingleton<ILlmService, SemanticKernelLlmService>();
 builder.Services.AddSingleton<ICouncilService, CouncilService>();
 builder.Services.AddSingleton<ICompanyDataService, CompanyDataService>();
