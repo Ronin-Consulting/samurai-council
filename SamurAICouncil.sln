@@ -23,6 +23,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SamurAICouncil.Web.Tests", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SamurAICouncil.Api", "SamurAICouncil.Api\SamurAICouncil.Api.csproj", "{E6C2DF1A-5C2C-4414-91DA-769A6D353CA1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SamurAICouncil.Api.Tests", "SamurAICouncil.Api.Tests\SamurAICouncil.Api.Tests.csproj", "{9573C200-5CB3-4A15-A52E-DB4F234A4F64}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -117,6 +119,18 @@ Global
 		{E6C2DF1A-5C2C-4414-91DA-769A6D353CA1}.Release|x64.Build.0 = Release|Any CPU
 		{E6C2DF1A-5C2C-4414-91DA-769A6D353CA1}.Release|x86.ActiveCfg = Release|Any CPU
 		{E6C2DF1A-5C2C-4414-91DA-769A6D353CA1}.Release|x86.Build.0 = Release|Any CPU
+		{9573C200-5CB3-4A15-A52E-DB4F234A4F64}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9573C200-5CB3-4A15-A52E-DB4F234A4F64}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9573C200-5CB3-4A15-A52E-DB4F234A4F64}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{9573C200-5CB3-4A15-A52E-DB4F234A4F64}.Debug|x64.Build.0 = Debug|Any CPU
+		{9573C200-5CB3-4A15-A52E-DB4F234A4F64}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{9573C200-5CB3-4A15-A52E-DB4F234A4F64}.Debug|x86.Build.0 = Debug|Any CPU
+		{9573C200-5CB3-4A15-A52E-DB4F234A4F64}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9573C200-5CB3-4A15-A52E-DB4F234A4F64}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9573C200-5CB3-4A15-A52E-DB4F234A4F64}.Release|x64.ActiveCfg = Release|Any CPU
+		{9573C200-5CB3-4A15-A52E-DB4F234A4F64}.Release|x64.Build.0 = Release|Any CPU
+		{9573C200-5CB3-4A15-A52E-DB4F234A4F64}.Release|x86.ActiveCfg = Release|Any CPU
+		{9573C200-5CB3-4A15-A52E-DB4F234A4F64}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

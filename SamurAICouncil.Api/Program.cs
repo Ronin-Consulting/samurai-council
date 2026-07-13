@@ -88,3 +88,6 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapFallbackToFile("index.html");
 
 app.Run();
+
+// Exposed for WebApplicationFactory-based integration tests.
+public partial class Program;
