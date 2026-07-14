@@ -52,54 +52,126 @@ export function deAnonymize(text: string, labelToModel: Record<string, string> |
   return out;
 }
 
-/** Average label length heuristic → horizontal bar when labels are long (ported from IChartDataTransformer). */
-function shouldUseHorizontalBar(chart: ChartRecommendation): boolean {
+/**
+ * Validated dataviz categorical palette (light + dark), fixed order, never cycled.
+ * A 9th+ series should be folded into "Other" upstream, not assigned a generated hue.
+ */
+export const PALETTE_LIGHT = ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7', '#e34948', '#e87ba4', '#eb6834'];
+export const PALETTE_DARK = ['#3987e5', '#199e70', '#c98500', '#008300', '#9085e9', '#e66767', '#d55181', '#d95926'];
+
+interface Ink { series: string[]; surface: string; primary: string; muted: string; grid: string; }
+function ink(dark: boolean): Ink {
+  return dark
+    ? { series: PALETTE_DARK, surface: '#1a1a19', primary: '#ffffff', muted: '#898781', grid: '#2c2c2a' }
+    : { series: PALETTE_LIGHT, surface: '#fcfcfb', primary: '#0b0b0b', muted: '#898781', grid: '#e1e0d9' };
+}
+
+/** Compact large numbers for axis ticks: 1500000000 → "1.5B". */
+export function abbreviate(v: number): string {
+  const a = Math.abs(v);
+  if (a >= 1e9) return (v / 1e9).toFixed(a % 1e9 ? 1 : 0) + 'B';
+  if (a >= 1e6) return (v / 1e6).toFixed(a % 1e6 ? 1 : 0) + 'M';
+  if (a >= 1e3) return (v / 1e3).toFixed(a % 1e3 ? 1 : 0) + 'K';
+  return String(v);
+}
+
+/** Average label length heuristic → auto-horizontal for a plain Bar with long labels. */
+function longLabels(chart: ChartRecommendation): boolean {
   if (!chart.labels?.length) return false;
-  const avg = chart.labels.reduce((s, l) => s + (l?.length ?? 0), 0) / chart.labels.length;
-  return avg > 12;
+  return chart.labels.reduce((s, l) => s + (l?.length ?? 0), 0) / chart.labels.length > 12;
 }
 
 /** Map a ChartRecommendation to an Apache ECharts `option` object for ngx-echarts. */
 export function chartToEChartsOption(chart: ChartRecommendation, dark: boolean): any {
-  const axisColor = dark ? '#a3a3a3' : '#525252';
-  const splitColor = dark ? '#333' : '#e5e5e5';
-  const palette = ['#c62828', '#1565c0', '#2e7d32', '#f9a825', '#6a1b9a', '#00838f', '#ef6c00', '#4527a0'];
+  const c = ink(dark);
+  const t = chart.type;
+  const isPie = t === 'Pie' || t === 'Donut';
   const base: any = {
-    color: palette,
-    title: chart.title ? { text: chart.title, left: 'center', textStyle: { color: dark ? '#f5f5f5' : '#171717', fontSize: 14 } } : undefined,
-    tooltip: { trigger: chart.type === 'Pie' || chart.type === 'Donut' ? 'item' : 'axis' },
-    grid: { left: '3%', right: '4%', bottom: '3%', top: chart.title ? 48 : 24, containLabel: true },
-    textStyle: { color: axisColor },
+    color: c.series,
+    title: chart.title ? { text: chart.title, left: 'center', textStyle: { color: c.primary, fontSize: 14, fontWeight: 600 } } : undefined,
+    tooltip: { trigger: isPie || t === 'Scatter' ? 'item' : 'axis' },
+    grid: { left: '3%', right: '4%', bottom: chart.series.length > 1 ? 32 : 8, top: chart.title ? 44 : 16, containLabel: true },
+    textStyle: { color: c.muted },
+    legend: chart.series.length > 1 ? { bottom: 0, textStyle: { color: c.muted } } : undefined,
   };
 
-  if (chart.type === 'Pie' || chart.type === 'Donut') {
+  if (isPie) {
     const values = chart.series?.[0]?.values ?? [];
     return {
       ...base,
-      legend: { bottom: 0, textStyle: { color: axisColor } },
+      // Left-align the title so it doesn't collide with the top slice's leader label.
+      title: chart.title ? { text: chart.title, left: 'left', top: 0, textStyle: { color: c.primary, fontSize: 14, fontWeight: 600 } } : undefined,
+      legend: { bottom: 0, textStyle: { color: c.muted } },
       series: [{
         type: 'pie',
-        radius: chart.type === 'Donut' ? ['40%', '70%'] : '65%',
-        center: ['50%', '46%'],
+        radius: t === 'Donut' ? ['42%', '66%'] : '64%',
+        center: ['50%', '52%'],
         data: chart.labels.map((l, i) => ({ name: l, value: values[i] ?? 0 })),
-        label: { color: axisColor },
+        label: { color: c.muted },
+        itemStyle: { borderColor: c.surface, borderWidth: 2 }, // 2px surface gap between slices
       }],
     };
   }
 
-  const horizontal = chart.type === 'Bar' && shouldUseHorizontalBar(chart);
-  const category = { type: 'category', data: chart.labels, axisLabel: { color: axisColor, rotate: horizontal ? 0 : (shouldUseHorizontalBar(chart) ? 30 : 0) }, name: chart.xAxisLabel ?? undefined };
-  const value = { type: 'value', axisLabel: { color: axisColor }, splitLine: { lineStyle: { color: splitColor } }, name: chart.yAxisLabel ?? undefined };
+  if (t === 'Scatter') {
+    return {
+      ...base,
+      xAxis: { type: 'value', name: chart.xAxisLabel ?? undefined, axisLabel: { color: c.muted }, splitLine: { lineStyle: { color: c.grid } } },
+      yAxis: { type: 'value', name: chart.yAxisLabel ?? undefined, axisLabel: { color: c.muted }, splitLine: { lineStyle: { color: c.grid } } },
+      series: chart.series.map((s) => ({
+        name: s.name,
+        type: 'scatter',
+        symbolSize: 10,
+        data: (s.points ?? []).map((p) => [p.x, p.y, p.label]),
+        itemStyle: { borderColor: c.surface, borderWidth: 1 },
+      })),
+    };
+  }
+
+  // Category charts: Bar / HorizontalBar / GroupedBar / StackedBar / Line / Area
+  const horizontal = t === 'HorizontalBar' || (t === 'Bar' && longLabels(chart));
+  const isBar = t === 'Bar' || t === 'HorizontalBar' || t === 'GroupedBar' || t === 'StackedBar';
+  const isStacked = t === 'StackedBar';
+  const isArea = t === 'Area';
+  const barRadius = horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0];
+
+  // The category axis always carries the xAxisLabel; the value axis the yAxisLabel —
+  // orientation only moves which screen axis each sits on, not the label's meaning.
+  const category: any = {
+    type: 'category',
+    data: chart.labels,
+    // Drop the category-axis name when it would collide: horizontal orientation, or a
+    // bottom legend (multi-series). The category tick labels already identify the axis.
+    name: horizontal || chart.series.length > 1 ? undefined : (chart.xAxisLabel ?? undefined),
+    nameLocation: 'middle',
+    nameGap: 30,
+    nameTextStyle: { color: c.muted },
+    axisLabel: { color: c.muted, rotate: !horizontal && longLabels(chart) ? 30 : 0 },
+    axisLine: { lineStyle: { color: c.grid } },
+  };
+  const value: any = {
+    type: 'value',
+    name: chart.yAxisLabel ?? undefined,
+    nameLocation: 'middle',
+    nameGap: horizontal ? 30 : 58,
+    nameTextStyle: { color: c.muted },
+    axisLabel: { color: c.muted, formatter: (v: number) => abbreviate(v) },
+    splitLine: { lineStyle: { color: c.grid } },
+  };
 
   return {
     ...base,
-    legend: chart.series.length > 1 ? { bottom: 0, textStyle: { color: axisColor } } : undefined,
     xAxis: horizontal ? value : category,
     yAxis: horizontal ? category : value,
     series: chart.series.map((s) => ({
       name: s.name,
-      type: chart.type === 'Line' ? 'line' : 'bar',
-      smooth: chart.type === 'Line',
+      type: isBar ? 'bar' : 'line',
+      stack: isStacked ? 'total' : undefined,
+      smooth: !isBar,
+      lineStyle: isBar ? undefined : { width: 2 },
+      symbolSize: isBar ? undefined : 8,
+      areaStyle: isArea ? { opacity: 0.25 } : undefined,
+      itemStyle: isBar ? { borderRadius: isStacked ? 0 : barRadius } : undefined,
       data: s.values,
     })),
   };

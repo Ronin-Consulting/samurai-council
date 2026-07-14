@@ -1,7 +1,7 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { MarkdownComponent } from 'ngx-markdown';
 import { AssistantMessage } from '../models';
-import { ChartDisplay } from './chart-display';
+import { VisualDisplay } from './visual-display';
 import { ApiService } from '../services/api.service';
 import { deAnonymize, getProviderColor, getProviderInitial, getShortModelName } from '../util';
 
@@ -9,7 +9,7 @@ type Tab = 'final' | 'responses' | 'rankings';
 
 @Component({
   selector: 'app-assistant-message',
-  imports: [MarkdownComponent, ChartDisplay],
+  imports: [MarkdownComponent, VisualDisplay],
   template: `
     @if (message(); as m) {
       @if (m.loading; as l) {
@@ -47,7 +47,7 @@ type Tab = 'final' | 'responses' | 'rankings';
                 }
               </div>
               <markdown class="prose-sm" [data]="s3.response"></markdown>
-              @if (s3.chart) { <app-chart-display [chart]="s3.chart" /> }
+              @if (s3.chart) { <app-visual-display [recommendation]="s3.chart" /> }
             }
 
             <!-- RESPONSES -->

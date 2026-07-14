@@ -69,6 +69,35 @@ public partial class ChartDataTransformer : IChartDataTransformer
             return false;
         }
 
+        // Non-chart visuals: validate their own payloads.
+        if (chart.Type == ChartType.Stat)
+        {
+            if (chart.Stats is not { Length: > 0 })
+            {
+                _logger.LogWarning("Stat rejected: no stats");
+                return false;
+            }
+            return true;
+        }
+
+        if (chart.Type == ChartType.Table)
+        {
+            if (chart.Table is null || chart.Table.Columns.Length == 0 || chart.Table.Rows.Length == 0)
+            {
+                _logger.LogWarning("Table rejected: no columns/rows");
+                return false;
+            }
+            return true;
+        }
+
+        // Scatter uses (x,y) points rather than value arrays.
+        if (chart.Type == ChartType.Scatter)
+        {
+            var hasPoints = chart.Series.Any(s => s.Points is { Length: >= 2 });
+            if (!hasPoints) _logger.LogWarning("Scatter rejected: needs >= 2 points");
+            return hasPoints;
+        }
+
         // Must have at least one series with data
         if (chart.Series.Length == 0)
         {
@@ -156,6 +185,12 @@ public partial class ChartDataTransformer : IChartDataTransformer
             return chart;
         }
 
+        // Non-value visuals carry their own payload — no label/value truncation.
+        if (chart.Type is ChartType.Stat or ChartType.Table or ChartType.Scatter)
+        {
+            return chart;
+        }
+
         var maxPoints = GetMaxDataPointsForChartType(chart.Type);
         var valueCount = chart.Series.Length > 0 ? chart.Series[0].Values.Length : 0;
         var needsTruncation = chart.Series.Any(s => s.Values.Length > maxPoints);
@@ -228,7 +263,11 @@ public partial class ChartDataTransformer : IChartDataTransformer
         ChartType.Pie => MaxPieChartSlices,
         ChartType.Donut => MaxPieChartSlices,
         ChartType.Bar => MaxBarChartCategories,
+        ChartType.HorizontalBar => MaxBarChartCategories,
+        ChartType.GroupedBar => MaxBarChartCategories,
+        ChartType.StackedBar => MaxBarChartCategories,
         ChartType.Line => MaxDataPoints,
+        ChartType.Area => MaxDataPoints,
         _ => MaxDataPoints
     };
 

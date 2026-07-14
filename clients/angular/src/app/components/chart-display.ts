@@ -21,7 +21,9 @@ export class ChartDisplay {
 
   visible = computed(() => {
     const c = this.chart();
-    return !!c && c.type !== 'None' && (c.labels?.length ?? 0) > 0 && (c.series?.length ?? 0) > 0;
+    if (!c || c.type === 'None') return false;
+    if (c.type === 'Scatter') return c.series?.some((s) => (s.points?.length ?? 0) > 0) ?? false;
+    return (c.labels?.length ?? 0) > 0 && (c.series?.length ?? 0) > 0;
   });
 
   options = computed(() => chartToEChartsOption(this.chart(), this.theme.isDark()));

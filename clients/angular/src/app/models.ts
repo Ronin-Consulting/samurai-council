@@ -1,10 +1,33 @@
 // TypeScript mirrors of the SamurAICouncil.Api JSON DTOs (snake_case; polymorphic Message by `role`).
 
-export type ChartType = 'None' | 'Bar' | 'Line' | 'Pie' | 'Donut';
+export type ChartType =
+  | 'None' | 'Bar' | 'HorizontalBar' | 'GroupedBar' | 'StackedBar'
+  | 'Line' | 'Area' | 'Pie' | 'Donut' | 'Scatter' | 'Stat' | 'Table';
+
+export interface ChartPoint {
+  x: number;
+  y: number;
+  label?: string | null;
+}
 
 export interface ChartSeriesData {
   name: string;
   values: number[];
+  points?: ChartPoint[] | null;
+}
+
+export interface StatData {
+  label: string;
+  value: number;
+  unit?: string | null;
+  caption?: string | null;
+  deltaPercent?: number | null;
+  sparkline?: number[] | null;
+}
+
+export interface TableData {
+  columns: string[];
+  rows: string[][];
 }
 
 export interface ChartRecommendation {
@@ -14,6 +37,8 @@ export interface ChartRecommendation {
   series: ChartSeriesData[];
   xAxisLabel?: string | null;
   yAxisLabel?: string | null;
+  stats?: StatData[] | null;
+  table?: TableData | null;
 }
 
 export interface ToolUsage {

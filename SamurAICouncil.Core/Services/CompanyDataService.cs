@@ -122,17 +122,12 @@ public partial class CompanyDataService : ICompanyDataService
         IReadOnlyList<Dictionary<string, object?>> data,
         CancellationToken cancellationToken = default)
     {
-        // Don't generate charts for empty data or single-value results
+        // Nothing to visualize.
         if (data.Count == 0)
         {
             return null;
         }
-
-        // Single row with single column = single value, no chart needed
-        if (data.Count == 1 && data[0].Count == 1)
-        {
-            return null;
-        }
+        // Single-value / near-single results are no longer discarded — they become Stat tiles.
 
         try
         {
@@ -140,36 +135,30 @@ public partial class CompanyDataService : ICompanyDataService
             var dataJson = JsonSerializer.Serialize(sampleData, new JsonSerializerOptions { WriteIndented = true });
 
             var systemPrompt = """
-                You are a data visualization expert. Analyze the query and data to determine if a chart would be helpful.
+                You are a data visualization expert. Pick the BEST form for the data's job.
+                Choose the form first (what must the reader do?), then fill its payload.
 
-                ## Chart Type Selection Guide
+                ## Job → form
 
-                **BAR CHART** - Use for comparing categories:
-                - Sales/revenue by region, country, store, product
-                - Top N items ranked by value
-                - Category comparisons (e.g., "sales by channel")
-                - Best for 3-15 categories
+                - **STAT** — one, or a few (2-4), headline numbers (e.g. "total revenue in 2008",
+                  "revenue and orders"). A single value is a Stat, never a one-bar chart.
+                - **TABLE** — a detail listing, or more than ~7 categories that all matter, or
+                  mixed text columns that don't reduce to one number per row. Prefer a table over
+                  cramming too much into a chart. (You only pick type=table + title; the rows are
+                  filled from the real result set automatically — do NOT echo rows.)
+                - **BAR** — compare magnitude across 3-15 categories (sales by channel, top N).
+                - **HORIZONTALBAR** — same, but labels are long or there are many categories.
+                - **GROUPEDBAR** — compare 2-4 distinct series per category, side by side
+                  (e.g. sales by channel AND year). One `series` entry per series.
+                - **STACKEDBAR** — part-to-whole across categories (composition that sums to a total).
+                - **LINE** — a trend over time (5-20 time points; one or more series).
+                - **AREA** — a single trend over time where the filled magnitude matters.
+                - **PIE / DONUT** — proportions of a whole, 2-6 positive slices only.
+                - **SCATTER** — correlation between two measures (x vs y), using `points`.
+                - **NONE** — text-only data, all zeros, or nothing worth showing.
 
-                **LINE CHART** - Use for trends over time:
-                - Monthly, quarterly, yearly trends
-                - Data with date/time columns (year, month, quarter)
-                - Sequential data showing change over time
-                - Best for 5-20 time points
-
-                **PIE CHART** - Use for proportions of a whole:
-                - Percentage breakdowns (e.g., "market share", "distribution")
-                - Part-to-whole relationships
-                - Best for 2-6 categories (7+ becomes unreadable)
-                - ALL VALUES MUST BE POSITIVE (no negative numbers!)
-
-                **NONE** - Do NOT create a chart when:
-                - Single value result (e.g., "total revenue is $X")
-                - Text-only data with no numeric values
-                - More than 15 categories with long labels
-                - Data that doesn't benefit from visualization
-                - Error or empty results
-                - All values are zero
-                - Data contains negative values for pie charts
+                Rules: never a dual-axis chart; pie/donut values must be positive; keep to one measure
+                per axis. For multi-series comparisons use grouped/stacked bar, not two charts.
 
                 ## Chart Title Guidelines
 
@@ -219,19 +208,31 @@ public partial class CompanyDataService : ICompanyDataService
                 - If data exceeds limits, use "none" or suggest filtering
 
                 ## Response Format
-                Return ONLY valid JSON (no markdown, no explanation):
+                Return ONLY valid JSON (no markdown, no explanation). `type` is one of:
+                bar | horizontalBar | groupedBar | stackedBar | line | area | pie | donut | scatter | stat | table | none
+
+                Category charts (bar/horizontalBar/groupedBar/stackedBar/line/area/pie/donut):
                 {
-                  "type": "bar|line|pie|none",
+                  "type": "bar",
                   "title": "Short Descriptive Title",
-                  "labels": ["Short1", "Short2", ...],
-                  "series": [
-                    { "name": "Series Name", "values": [100, 200, ...] }
-                  ],
+                  "labels": ["Short1", "Short2"],
+                  "series": [ { "name": "Series Name", "values": [100, 200] } ],
                   "xAxisLabel": "Category",
                   "yAxisLabel": "Value ($)"
                 }
+                (grouped/stacked bar: include one object per series in "series".)
 
-                If no chart is appropriate, return: { "type": "none" }
+                Scatter:
+                { "type": "scatter", "title": "...", "xAxisLabel": "Unit Price ($)", "yAxisLabel": "Quantity",
+                  "series": [ { "name": "Orders", "points": [ { "x": 12.5, "y": 3, "label": "opt" } ] } ] }
+
+                Stat (one to four KPIs — read the numbers straight from the data):
+                { "type": "stat", "title": "...", "stats": [ { "label": "Total Revenue", "value": 4111233535, "unit": "$", "caption": "2008" } ] }
+
+                Table (pick type + title only; rows are filled automatically):
+                { "type": "table", "title": "Products" }
+
+                If nothing is worth showing, return: { "type": "none" }
                 """;
 
             var userPrompt = $"""
@@ -259,13 +260,103 @@ public partial class CompanyDataService : ICompanyDataService
                 return null;
             }
 
-            return ParseChartRecommendation(response);
+            var recommendation = ParseChartRecommendation(response);
+            if (recommendation is null)
+            {
+                return null;
+            }
+
+            // Fill non-chart payloads from the REAL result set (avoid LLM hallucination of rows/values).
+            if (recommendation.Type == ChartType.Table)
+            {
+                recommendation = recommendation with { Table = BuildTable(data) };
+            }
+            else if (recommendation.Type == ChartType.Stat &&
+                     (recommendation.Stats is null || recommendation.Stats.Length == 0))
+            {
+                recommendation = recommendation with { Stats = BuildStats(data) };
+            }
+
+            return recommendation;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to generate chart recommendation");
             return null;
         }
+    }
+
+    private const int MaxTableColumns = 12;
+
+    /// <summary>Builds a table payload from the actual query result (columns from keys, formatted cells).</summary>
+    private static TableData BuildTable(IReadOnlyList<Dictionary<string, object?>> data)
+    {
+        var columns = data[0].Keys.Take(MaxTableColumns).ToArray();
+        var rows = data
+            .Select(row => columns.Select(c => FormatCell(row.TryGetValue(c, out var v) ? v : null)).ToArray())
+            .ToArray();
+        return new TableData { Columns = columns, Rows = rows };
+    }
+
+    /// <summary>Builds stat tiles from a single-row result: one tile per numeric column (max 4).</summary>
+    private static StatData[] BuildStats(IReadOnlyList<Dictionary<string, object?>> data)
+    {
+        var row = data[0];
+        var stats = new List<StatData>();
+        foreach (var (key, value) in row)
+        {
+            if (TryToDouble(value, out var num))
+            {
+                stats.Add(new StatData { Label = key, Value = num });
+            }
+            if (stats.Count == 4) break;
+        }
+        // Fallback: if no numeric columns, show the first cell as a text-less stat.
+        if (stats.Count == 0 && row.Count > 0)
+        {
+            var first = row.First();
+            stats.Add(new StatData { Label = first.Key, Value = 0, Caption = FormatCell(first.Value) });
+        }
+        return stats.ToArray();
+    }
+
+    private static bool TryToDouble(object? value, out double result)
+    {
+        switch (value)
+        {
+            case null: result = 0; return false;
+            case double d: result = d; return true;
+            case float f: result = f; return true;
+            case int i: result = i; return true;
+            case long l: result = l; return true;
+            case decimal m: result = (double)m; return true;
+            case System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number:
+                result = je.GetDouble(); return true;
+            default:
+                return double.TryParse(value.ToString(), out result);
+        }
+    }
+
+    private static string FormatCell(object? value)
+    {
+        if (value is null) return string.Empty;
+        if (value is System.Text.Json.JsonElement je)
+        {
+            return je.ValueKind switch
+            {
+                System.Text.Json.JsonValueKind.Number => je.GetRawText(),
+                System.Text.Json.JsonValueKind.String => je.GetString() ?? string.Empty,
+                System.Text.Json.JsonValueKind.True => "true",
+                System.Text.Json.JsonValueKind.False => "false",
+                System.Text.Json.JsonValueKind.Null => string.Empty,
+                _ => je.GetRawText()
+            };
+        }
+        if (value is double or float or decimal)
+        {
+            return Convert.ToDouble(value).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+        }
+        return value.ToString() ?? string.Empty;
     }
 
     private ChartRecommendation? ParseChartRecommendation(string response)
@@ -285,13 +376,15 @@ public partial class CompanyDataService : ICompanyDataService
                 return null;
             }
 
-            // Validate chart has required data
-            if (chart.Series.Length == 0 || chart.Series.All(s => s.Values.Length == 0))
+            // Value-based charts require at least one non-empty value series.
+            // Stat/Table/Scatter carry their own payloads (filled/validated elsewhere).
+            var valueBased = chart.Type is not (ChartType.Stat or ChartType.Table or ChartType.Scatter);
+            if (valueBased && (chart.Series.Length == 0 || chart.Series.All(s => s.Values.Length == 0)))
             {
                 return null;
             }
 
-            _logger.LogInformation("Generated {ChartType} chart recommendation: {Title}",
+            _logger.LogInformation("Generated {ChartType} visualization recommendation: {Title}",
                 chart.Type, chart.Title);
 
             return chart;
