@@ -2,6 +2,7 @@ bin/
 obj/
 /packages/
 .shots/
+.superpowers/
 riderModule.iml
 /_ReSharper.Caches/
 .DS_Store
