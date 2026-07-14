@@ -16,15 +16,21 @@ type Tab = 'final' | 'responses' | 'rankings';
     @if (message(); as m) {
       @if (m.loading; as l) {
         <!-- Progressive loading indicator -->
-        <div class="rounded-xl border border-neutral-200 dark:border-neutral-700 p-4">
-          <div class="flex items-center gap-3 text-sm text-neutral-500">
-            <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-red-600 border-t-transparent"></span>
-            <span>{{ loadingLabel() }}</span>
-          </div>
-          <div class="mt-3 flex gap-2 text-xs">
-            <span [class]="stepClass(1)">1 · Responses</span>
-            <span [class]="stepClass(2)">2 · Review</span>
-            <span [class]="stepClass(3)">3 · Synthesis</span>
+        <div class="rounded-xl border border-neutral-200 dark:border-neutral-700 p-5">
+          <div class="mb-4 text-sm font-medium text-neutral-700 dark:text-neutral-200">{{ loadingLabel() }}</div>
+          <div class="flex items-center">
+            @for (s of steps(); track s.n; let last = $last) {
+              <div class="flex items-center gap-2">
+                <span [class]="dotClass(s.state)">
+                  @if (s.state === 'done') { ✓ } @else { {{ s.n }} }
+                </span>
+                <span [class]="labelClass(s.state)">{{ s.label }}</span>
+              </div>
+              @if (!last) {
+                <span class="mx-3 h-px w-8 flex-none"
+                  [class]="s.state === 'done' ? 'bg-green-600/50' : 'bg-neutral-200 dark:bg-neutral-700'"></span>
+              }
+            }
           </div>
         </div>
       } @else {
@@ -39,16 +45,19 @@ type Tab = 'final' | 'responses' | 'rankings';
           <div class="p-4">
             <!-- FINAL -->
             @if (tab() === 'final' && m.stage3; as s3) {
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-xs rounded bg-red-600 text-white px-2 py-0.5">Chairman: {{ short(s3.model) }}</span>
+              <div class="flex items-center justify-between mb-3">
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-red-600/10 px-2.5 py-1 text-xs font-medium text-red-600">
+                  <span class="inline-block h-1.5 w-1.5 rounded-full bg-red-600"></span>
+                  Chairman · {{ short(s3.model) }}
+                </span>
                 @if (conversationId()) {
                   <span class="flex gap-2">
-                    <a [href]="pdfUrl()" class="text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800">PDF</a>
-                    <a [href]="xlsxUrl()" class="text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800">Excel</a>
+                    <a [href]="pdfUrl()" class="rounded-md border border-neutral-200 px-2.5 py-1 text-xs text-neutral-600 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">PDF</a>
+                    <a [href]="xlsxUrl()" class="rounded-md border border-neutral-200 px-2.5 py-1 text-xs text-neutral-600 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">Excel</a>
                   </span>
                 }
               </div>
-              <markdown class="prose-sm" [data]="s3.response"></markdown>
+              <markdown class="answer" [data]="s3.response"></markdown>
               @if (viewMode.mode() === 'studio') {
                 @if (s3.studio_chart) { <app-studio-display [recommendation]="s3.studio_chart" /> }
               } @else {
@@ -60,12 +69,12 @@ type Tab = 'final' | 'responses' | 'rankings';
             @if (tab() === 'responses') {
               @for (r of m.stage1 ?? []; track r.model) {
                 <div class="mb-4">
-                  <div class="flex items-center gap-2 mb-1">
+                  <div class="flex items-center gap-2 mb-1.5">
                     <span class="inline-flex h-6 w-6 items-center justify-center rounded-full text-white text-xs {{ color(r.model) }}">{{ initial(r.model) }}</span>
                     <span class="font-medium text-sm">{{ short(r.model) }}</span>
-                    @if (r.tool_usages.length) { <span class="text-xs text-blue-500">🔧 tools</span> }
+                    @if (r.tool_usages.length) { <span class="rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] text-neutral-500 dark:border-neutral-700">🔧 tools</span> }
                   </div>
-                  <markdown class="prose-sm" [data]="r.response"></markdown>
+                  <markdown class="answer" [data]="r.response"></markdown>
                 </div>
               }
             }
@@ -73,14 +82,18 @@ type Tab = 'final' | 'responses' | 'rankings';
             <!-- RANKINGS -->
             @if (tab() === 'rankings') {
               @if (m.metadata?.aggregate_rankings?.length) {
-                <table class="w-full text-sm mb-4">
-                  <thead><tr class="text-left text-neutral-500"><th class="py-1">#</th><th>Model</th><th>Avg Rank</th></tr></thead>
+                <table class="w-full text-sm mb-5 tabular-nums">
+                  <thead>
+                    <tr class="text-left text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
+                      <th class="pb-2 font-semibold">#</th><th class="pb-2 font-semibold">Model</th><th class="pb-2 text-right font-semibold">Avg Rank</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     @for (a of m.metadata!.aggregate_rankings; track a.model; let i = $index) {
-                      <tr class="border-t border-neutral-200 dark:border-neutral-700">
-                        <td class="py-1">{{ i + 1 }}</td>
-                        <td>{{ short(a.model) }}</td>
-                        <td>{{ a.average_rank.toFixed(2) }}</td>
+                      <tr class="border-t border-neutral-200 dark:border-neutral-800">
+                        <td class="py-1.5 text-neutral-400">{{ i + 1 }}</td>
+                        <td class="py-1.5">{{ short(a.model) }}</td>
+                        <td class="py-1.5 text-right">{{ a.average_rank.toFixed(2) }}</td>
                       </tr>
                     }
                   </tbody>
@@ -89,7 +102,7 @@ type Tab = 'final' | 'responses' | 'rankings';
               @for (rk of m.stage2 ?? []; track rk.model) {
                 <div class="mb-3">
                   <div class="font-medium text-sm mb-1">{{ short(rk.model) }}</div>
-                  <markdown class="prose-sm text-neutral-600 dark:text-neutral-300" [data]="deanon(rk.ranking, m.metadata?.label_to_model)"></markdown>
+                  <markdown class="answer text-neutral-600 dark:text-neutral-300" [data]="deanon(rk.ranking, m.metadata?.label_to_model)"></markdown>
                 </div>
               }
             }
@@ -130,18 +143,34 @@ export class AssistantMessagePanel {
     return 1;
   });
 
-  stepClass(step: number): string {
+  steps = computed(() => {
     const active = this.currentStep();
-    const base = 'rounded px-2 py-0.5 ';
-    if (step < active) return base + 'bg-green-600/20 text-green-600';
-    if (step === active) return base + 'bg-red-600/20 text-red-600';
-    return base + 'bg-neutral-200 dark:bg-neutral-700 text-neutral-500';
+    return [
+      { n: 1, label: 'Responses' },
+      { n: 2, label: 'Review' },
+      { n: 3, label: 'Synthesis' },
+    ].map((d) => ({
+      ...d,
+      state: d.n < active ? 'done' : d.n === active ? 'active' : 'todo',
+    }));
+  });
+
+  dotClass(state: string): string {
+    const base = 'flex h-6 w-6 flex-none items-center justify-center rounded-full text-xs font-semibold ';
+    if (state === 'done') return base + 'bg-green-600 text-white';
+    if (state === 'active') return base + 'bg-red-600 text-white animate-pulse';
+    return base + 'border border-neutral-300 text-neutral-400 dark:border-neutral-600';
+  }
+
+  labelClass(state: string): string {
+    if (state === 'active') return 'text-sm font-medium text-neutral-900 dark:text-neutral-100';
+    return 'text-sm text-neutral-400';
   }
 
   tabClass(t: Tab): string {
     const on = this.tab() === t;
-    return 'px-4 py-2 ' + (on
-      ? 'border-b-2 border-red-600 text-red-600 font-medium'
-      : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200');
+    return 'px-4 py-2.5 -mb-px border-b-2 transition-colors ' + (on
+      ? 'border-red-600 text-neutral-900 dark:text-neutral-100 font-medium'
+      : 'border-transparent text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200');
   }
 }
