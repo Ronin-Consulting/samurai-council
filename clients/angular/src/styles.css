@@ -3,7 +3,31 @@
 /* Class-based dark mode: `dark:` responds to a `.dark` class on <html> (toggled by ThemeService). */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * Design system: "Refined Dark" (see docs/design.md).
+ * We warm-tune Tailwind's `neutral` ramp once here so every existing `neutral-*`
+ * utility across the app shifts to the calmer, warmer palette — no per-component churn.
+ * Unlayered :root overrides beat Tailwind's @layer theme defaults.
+ */
 :root {
+  /* Warm neutral ramp (light values + dark surfaces share the ramp) */
+  --color-neutral-50: #f7f7f5;
+  --color-neutral-100: #eeede8;
+  --color-neutral-200: #e4e2db;
+  --color-neutral-300: #d2cfc7;
+  --color-neutral-400: #a3a19a;
+  --color-neutral-500: #8a8880;
+  --color-neutral-600: #6b6960;
+  --color-neutral-700: #37332d;
+  --color-neutral-800: #262320;
+  --color-neutral-900: #171613;
+  --color-neutral-950: #0e0e0c;
+
+  /* Semantic accents */
+  --accent: #c62828;
+  --accent-hover: #a81f1f;
+  --gold: #b8912f;
+
   color-scheme: light dark;
 }
 
@@ -14,7 +38,9 @@ body {
 }
 
 body {
-  font-family: "Roboto", system-ui, -apple-system, Segoe UI, sans-serif;
+  font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   @apply bg-neutral-50 text-neutral-900;
 }
 
@@ -22,12 +48,36 @@ html.dark body {
   @apply bg-neutral-950 text-neutral-100;
 }
 
-/* Ronin brand accent */
-:root {
-  --accent: #c62828;
+/* Slightly tightened, calmer headings */
+h1, h2, h3 {
+  letter-spacing: -0.011em;
 }
 
-/* Thin scrollbars */
+/* Consistent, visible focus ring (accessibility) */
+:where(a, button, input, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* Refined thin scrollbars */
 * {
   scrollbar-width: thin;
+  scrollbar-color: var(--color-neutral-400) transparent;
+}
+html.dark * {
+  scrollbar-color: var(--color-neutral-700) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

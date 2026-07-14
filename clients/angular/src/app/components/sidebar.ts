@@ -7,15 +7,15 @@ import { ConversationStore } from '../services/conversation.store';
   template: `
     <div class="flex h-full flex-col">
       <button (click)="newChat()"
-        class="m-3 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700">
+        class="m-3 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-hover)]">
         + New Chat
       </button>
 
       <div class="flex-1 overflow-y-auto px-2">
         @for (c of store.conversations(); track c.id) {
           <div (click)="select(c.id)"
-            class="group flex items-center justify-between rounded-lg px-3 py-2 text-sm cursor-pointer"
-            [class]="isActive(c.id) ? 'bg-neutral-200 dark:bg-neutral-800' : 'hover:bg-neutral-100 dark:hover:bg-neutral-800/60'">
+            class="group flex items-center justify-between rounded-md py-2 pl-2.5 pr-3 text-sm cursor-pointer border-l-2 transition-colors"
+            [class]="isActive(c.id) ? 'border-red-600 bg-neutral-100 dark:bg-neutral-800/70 text-neutral-900 dark:text-neutral-100' : 'border-transparent text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/50'">
             <span class="truncate">{{ c.title }}</span>
             <button (click)="del(c.id, $event)"
               class="ml-2 hidden text-neutral-400 hover:text-red-600 group-hover:block">✕</button>
@@ -25,7 +25,7 @@ import { ConversationStore } from '../services/conversation.store';
         }
       </div>
 
-      <div class="p-3 text-xs text-neutral-400">SamurAI Council · v2.0</div>
+      <div class="border-t border-neutral-200 p-3 text-xs text-neutral-400 dark:border-neutral-800">SamurAI Council · v2.0</div>
     </div>
   `,
 })

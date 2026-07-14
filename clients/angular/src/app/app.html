@@ -4,21 +4,24 @@
   </aside>
   <div class="flex min-w-0 flex-1 flex-col">
     <header class="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 px-4 py-3">
-      <span class="font-bold text-red-600">&#9876; SamurAI Council</span>
-      <div class="flex items-center gap-3">
+      <span class="flex items-center gap-2 font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+        <span class="inline-block h-2 w-2 rounded-full bg-red-600"></span>
+        SamurAI Council
+      </span>
+      <div class="flex items-center gap-2">
         <!-- Version toggle: Classic (generative) vs Studio (pre-made components) -->
-        <div class="flex rounded-lg border border-neutral-300 dark:border-neutral-700 p-0.5 text-xs">
+        <div class="flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs font-medium">
           <button (click)="viewMode.set('classic')"
-            [class]="viewMode.mode() === 'classic' ? 'rounded-md bg-red-600 px-2.5 py-1 text-white' : 'px-2.5 py-1 text-neutral-500'">
+            [class]="viewMode.mode() === 'classic' ? 'rounded-md bg-red-600 px-2.5 py-1 text-white' : 'rounded-md px-2.5 py-1 text-neutral-500 transition-colors hover:text-neutral-800 dark:hover:text-neutral-200'">
             Classic
           </button>
           <button (click)="viewMode.set('studio')"
-            [class]="viewMode.mode() === 'studio' ? 'rounded-md bg-red-600 px-2.5 py-1 text-white' : 'px-2.5 py-1 text-neutral-500'">
+            [class]="viewMode.mode() === 'studio' ? 'rounded-md bg-red-600 px-2.5 py-1 text-white' : 'rounded-md px-2.5 py-1 text-neutral-500 transition-colors hover:text-neutral-800 dark:hover:text-neutral-200'">
             Studio
           </button>
         </div>
         <button (click)="theme.toggle()"
-          class="rounded-lg p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          class="rounded-lg p-2 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
           aria-label="Toggle theme">
           {{ theme.isDark() ? '☀' : '🌙' }}
         </button>

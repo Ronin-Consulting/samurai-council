@@ -14,9 +14,20 @@ import { AssistantMessagePanel } from './assistant-message';
       <div class="flex-1 overflow-y-auto">
         <div class="mx-auto max-w-3xl px-4 py-6">
           @if (!store.current() || store.current()!.messages.length === 0) {
-            <div class="mt-20 text-center">
-              <h1 class="text-3xl font-bold text-red-600">SamurAI Council</h1>
+            <div class="mt-24 flex flex-col items-center text-center">
+              <span class="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-400">
+                <span class="inline-block h-2 w-2 rounded-full bg-red-600"></span> SamurAI Council
+              </span>
+              <h1 class="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">How can the council help?</h1>
               <p class="mt-2 text-neutral-500">Ask a question — three models deliberate, a chairman synthesizes.</p>
+              <div class="mt-7 flex flex-wrap justify-center gap-2">
+                @for (ex of examples; track ex) {
+                  <button (click)="sendText(ex)"
+                    class="rounded-full border border-neutral-200 px-3.5 py-1.5 text-sm text-neutral-600 transition-colors hover:border-red-600 hover:text-red-600 dark:border-neutral-700 dark:text-neutral-300 dark:hover:text-red-500">
+                    {{ ex }}
+                  </button>
+                }
+              </div>
             </div>
           } @else {
             @for (m of store.current()!.messages; track $index; let i = $index) {
@@ -41,11 +52,11 @@ import { AssistantMessagePanel } from './assistant-message';
 
       <div class="border-t border-neutral-200 dark:border-neutral-800 p-4">
         <div class="mx-auto flex max-w-3xl items-end gap-2">
-          <textarea #ta [value]="input()" (input)="input.set(ta.value)" (keydown)="onKey($event, ta)"
+          <textarea #ta [value]="input()" (input)="input.set(ta.value)" (keydown)="onKey($event)"
             rows="1" placeholder="Ask the council…" [disabled]="store.isProcessing()"
-            class="flex-1 resize-none rounded-xl border border-neutral-300 dark:border-neutral-700 bg-transparent px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:opacity-50"></textarea>
-          <button (click)="send(ta)" [disabled]="store.isProcessing() || !input().trim()"
-            class="rounded-xl bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700 disabled:opacity-40">
+            class="flex-1 resize-none rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-neutral-900 placeholder:text-neutral-400 transition-colors focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600/40 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"></textarea>
+          <button (click)="sendText(input())" [disabled]="store.isProcessing() || !input().trim()"
+            class="rounded-xl bg-red-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-40">
             Send
           </button>
         </div>
@@ -60,6 +71,13 @@ export class ChatPage implements OnInit {
   private router = inject(Router);
 
   input = signal('');
+
+  readonly examples = [
+    'Show top 5 products by revenue in 2008',
+    'Show sales by country',
+    'Show monthly sales trends',
+    'What percentage of sales come from each channel?',
+  ];
 
   ngOnInit(): void {
     this.route.paramMap.subscribe((pm) => {
@@ -86,18 +104,17 @@ export class ChatPage implements OnInit {
     return prev && prev.role === 'user' ? prev.content : '';
   }
 
-  onKey(ev: KeyboardEvent, ta: HTMLTextAreaElement): void {
+  onKey(ev: KeyboardEvent): void {
     if (ev.key === 'Enter' && !ev.shiftKey) {
       ev.preventDefault();
-      this.send(ta);
+      this.sendText(this.input());
     }
   }
 
-  async send(ta: HTMLTextAreaElement): Promise<void> {
-    const text = this.input().trim();
+  async sendText(raw: string): Promise<void> {
+    const text = raw.trim();
     if (!text || this.store.isProcessing()) return;
     this.input.set('');
-    ta.value = '';
 
     if (!this.store.current()) {
       const conv = await this.store.create();
