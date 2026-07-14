@@ -37,6 +37,7 @@ builder.Services.AddSingleton<ILlmService, SemanticKernelLlmService>();
 builder.Services.AddSingleton<ICouncilService, CouncilService>();
 builder.Services.AddSingleton<ICompanyDataService, CompanyDataService>();
 builder.Services.AddSingleton<IChartDataTransformer, ChartDataTransformer>();
+builder.Services.AddSingleton<StudioClassifier>();
 builder.Services.AddSingleton<CompanyDataTool>();
 builder.Services.AddSingleton<CompanyDataPlugin>();
 

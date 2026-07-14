@@ -10,10 +10,12 @@ namespace SamurAICouncil.Core.Services;
 public class CompanyDataTool : ILlmTool
 {
     private readonly ICompanyDataService _dataService;
+    private readonly StudioClassifier _studioClassifier;
 
-    public CompanyDataTool(ICompanyDataService dataService)
+    public CompanyDataTool(ICompanyDataService dataService, StudioClassifier studioClassifier)
     {
         _dataService = dataService;
+        _studioClassifier = studioClassifier;
     }
 
     /// <summary>
@@ -56,17 +58,19 @@ public class CompanyDataTool : ILlmTool
 
         var result = await _dataService.QueryCompanyDataAsync(query, cancellationToken);
 
-        // Generate chart recommendation if query was successful
+        // V1 (Classic): LLM-generated chart recommendation. V2 (Studio): deterministic classification.
+        ChartRecommendation? studioChart = null;
         if (result.Success && result.Data is { Count: > 0 })
         {
             LastChartRecommendation = await _dataService.GenerateChartRecommendationAsync(
                 query, result.Data, cancellationToken);
+            studioChart = _studioClassifier.Classify(query, result.Data);
         }
 
-        return FormatResult(result, LastChartRecommendation);
+        return FormatResult(result, LastChartRecommendation, studioChart);
     }
 
-    private static string FormatResult(CompanyDataResult result, ChartRecommendation? chart)
+    private static string FormatResult(CompanyDataResult result, ChartRecommendation? chart, ChartRecommendation? studioChart = null)
     {
         if (!result.Success)
         {
@@ -88,7 +92,8 @@ public class CompanyDataTool : ILlmTool
                 sql = result.GeneratedSql,
                 rowCount = result.RowCount,
                 data = result.Data,
-                chart
+                chart,
+                studioChart
             }, options);
         }
 
@@ -101,7 +106,8 @@ public class CompanyDataTool : ILlmTool
             rowCount = result.RowCount,
             note = $"Showing first 10 of {result.RowCount} rows",
             data = sample,
-            chart
+            chart,
+            studioChart
         }, options);
     }
 }

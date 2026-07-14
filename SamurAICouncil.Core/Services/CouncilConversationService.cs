@@ -239,6 +239,20 @@ public class CouncilConversationService
                 _logger.LogInformation("Propagated chart to Final Answer: {Type} - {Title}", chart.Type, chart.Title);
             }
 
+            // V2 "Studio": propagate the deterministically-classified visual the same way.
+            ChartRecommendation? studioChart = null;
+            if (aggregateRankings.Count > 0)
+            {
+                var topModel = aggregateRankings[0].Model;
+                studioChart = stage1.FirstOrDefault(r => r.Model == topModel)?
+                    .ToolUsages.FirstOrDefault(t => t.StudioChart != null)?.StudioChart;
+            }
+            studioChart ??= stage1.SelectMany(r => r.ToolUsages).FirstOrDefault(t => t.StudioChart != null)?.StudioChart;
+            if (studioChart != null)
+            {
+                stage3.StudioChart = studioChart;
+            }
+
             assistant.Stage3 = stage3;
             assistant.Loading = null;
             await emit(new CouncilStreamEvent("stage3", stage3));

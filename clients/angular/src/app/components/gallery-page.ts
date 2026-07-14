@@ -1,20 +1,30 @@
 import { Component } from '@angular/core';
 import { VisualDisplay } from './visual-display';
+import { StudioDisplay } from './studio/studio-display';
 import { ChartRecommendation } from '../models';
 
-/** Dev/design showcase of every visualization form with sample data. Route: /gallery */
+/** Side-by-side showcase: Classic (generative) vs Studio (pre-made) for every form. Route: /gallery */
 @Component({
   selector: 'app-gallery-page',
-  imports: [VisualDisplay],
+  imports: [VisualDisplay, StudioDisplay],
   template: `
-    <div class="mx-auto max-w-5xl p-6">
-      <h1 class="mb-1 text-2xl font-bold text-red-600">Visualization Gallery</h1>
-      <p class="mb-6 text-sm text-neutral-500">Every form the text-to-SQL pipeline can produce, with sample data.</p>
-      <div class="grid gap-6 md:grid-cols-2">
+    <div class="mx-auto max-w-6xl p-6">
+      <h1 class="mb-1 text-2xl font-bold text-red-600">Visualization Gallery — Classic vs Studio</h1>
+      <p class="mb-6 text-sm text-neutral-500">Same sample data, rendered both ways. Left: generative (V1). Right: pre-made components (V2).</p>
+      <div class="grid gap-6">
         @for (s of samples; track $index) {
           <div class="rounded-xl border border-neutral-200 dark:border-neutral-700 p-4">
             <div class="mb-2 text-xs uppercase tracking-wide text-neutral-500">{{ s.type }}</div>
-            <app-visual-display [recommendation]="s" />
+            <div class="grid gap-4 md:grid-cols-2">
+              <div>
+                <div class="mb-1 text-[11px] font-medium uppercase tracking-wide text-neutral-400">Classic</div>
+                <app-visual-display [recommendation]="s" />
+              </div>
+              <div>
+                <div class="mb-1 text-[11px] font-medium uppercase tracking-wide text-neutral-400">Studio</div>
+                <app-studio-display [recommendation]="s" />
+              </div>
+            </div>
           </div>
         }
       </div>

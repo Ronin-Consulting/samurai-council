@@ -176,3 +176,77 @@ export function chartToEChartsOption(chart: ChartRecommendation, dark: boolean):
     })),
   };
 }
+
+/**
+ * V2 "Studio" ECharts styling — a deliberately distinct, more "productized" look for the
+ * pre-made cards: value labels on single-series bars, dashed gridlines, circle legend icons,
+ * thicker marks, and a donut center-total. Additive; the Classic `chartToEChartsOption` is untouched.
+ */
+export function studioChartOption(chart: ChartRecommendation, dark: boolean): any {
+  const c = ink(dark);
+  const t = chart.type;
+  const isPie = t === 'Pie' || t === 'Donut';
+  const single = chart.series.length <= 1;
+  const base: any = {
+    color: single ? [c.series[0]] : c.series, // single series = emphasis (one hue)
+    tooltip: { trigger: isPie || t === 'Scatter' ? 'item' : 'axis' },
+    grid: { left: '3%', right: '6%', bottom: chart.series.length > 1 ? 28 : 8, top: 12, containLabel: true },
+    textStyle: { color: c.muted },
+    legend: chart.series.length > 1 ? { bottom: 0, icon: 'circle', textStyle: { color: c.muted } } : undefined,
+  };
+
+  if (isPie) {
+    const values = chart.series?.[0]?.values ?? [];
+    const total = values.reduce((a, b) => a + b, 0);
+    return {
+      ...base,
+      legend: { bottom: 0, icon: 'circle', textStyle: { color: c.muted } },
+      graphic: t === 'Donut' && total
+        ? [{ type: 'text', left: 'center', top: '42%', style: { text: abbreviate(total), fill: c.primary, font: '600 20px system-ui' } }]
+        : undefined,
+      series: [{
+        type: 'pie',
+        radius: t === 'Donut' ? ['52%', '72%'] : '70%',
+        center: ['50%', '48%'],
+        data: chart.labels.map((l, i) => ({ name: l, value: values[i] ?? 0 })),
+        label: { color: c.muted, formatter: '{b}: {d}%' },
+        itemStyle: { borderColor: c.surface, borderWidth: 3 },
+      }],
+    };
+  }
+
+  if (t === 'Scatter') {
+    return {
+      ...base,
+      xAxis: { type: 'value', name: chart.xAxisLabel ?? undefined, nameLocation: 'middle', nameGap: 28, axisLabel: { color: c.muted }, splitLine: { lineStyle: { color: c.grid, type: 'dashed' } } },
+      yAxis: { type: 'value', name: chart.yAxisLabel ?? undefined, nameLocation: 'middle', nameGap: 40, axisLabel: { color: c.muted }, splitLine: { lineStyle: { color: c.grid, type: 'dashed' } } },
+      series: chart.series.map((s) => ({ name: s.name, type: 'scatter', symbolSize: 12, data: (s.points ?? []).map((p) => [p.x, p.y]) })),
+    };
+  }
+
+  const horizontal = t === 'HorizontalBar' || (t === 'Bar' && longLabels(chart));
+  const isBar = t === 'Bar' || t === 'HorizontalBar' || t === 'GroupedBar' || t === 'StackedBar';
+  const isStacked = t === 'StackedBar';
+  const isArea = t === 'Area';
+  const category: any = { type: 'category', data: chart.labels, axisTick: { show: false }, axisLine: { lineStyle: { color: c.grid } }, axisLabel: { color: c.muted, rotate: !horizontal && longLabels(chart) ? 30 : 0 } };
+  const value: any = { type: 'value', axisLabel: { color: c.muted, formatter: (v: number) => abbreviate(v) }, splitLine: { lineStyle: { color: c.grid, type: 'dashed' } } };
+
+  return {
+    ...base,
+    xAxis: horizontal ? value : category,
+    yAxis: horizontal ? category : value,
+    series: chart.series.map((s) => ({
+      name: s.name,
+      type: isBar ? 'bar' : 'line',
+      stack: isStacked ? 'total' : undefined,
+      smooth: !isBar,
+      lineStyle: isBar ? undefined : { width: 3 },
+      symbol: 'circle',
+      symbolSize: isBar ? undefined : 7,
+      areaStyle: isArea ? { opacity: 0.2 } : undefined,
+      itemStyle: isBar ? { borderRadius: isStacked ? 0 : (horizontal ? [0, 6, 6, 0] : [6, 6, 0, 0]) } : undefined,
+      label: isBar && single ? { show: true, position: horizontal ? 'right' : 'top', color: c.muted, formatter: (p: any) => abbreviate(p.value) } : undefined,
+      data: s.values,
+    })),
+  };
+}

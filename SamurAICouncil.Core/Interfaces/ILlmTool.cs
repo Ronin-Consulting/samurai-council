@@ -78,8 +78,14 @@ public class ToolUsage
     public required string Output { get; set; }
 
     /// <summary>
-    /// Optional chart recommendation based on the tool output.
+    /// Optional chart recommendation based on the tool output (V1 "Classic", LLM-generated).
     /// </summary>
     [JsonPropertyName("chart")]
     public ChartRecommendation? Chart { get; set; }
+
+    /// <summary>
+    /// Optional deterministically-classified recommendation (V2 "Studio", from the raw result shape).
+    /// </summary>
+    [JsonPropertyName("studio_chart")]
+    public ChartRecommendation? StudioChart { get; set; }
 }

@@ -2,14 +2,16 @@ import { Component, computed, inject, input, signal } from '@angular/core';
 import { MarkdownComponent } from 'ngx-markdown';
 import { AssistantMessage } from '../models';
 import { VisualDisplay } from './visual-display';
+import { StudioDisplay } from './studio/studio-display';
 import { ApiService } from '../services/api.service';
+import { ViewModeService } from '../services/view-mode.service';
 import { deAnonymize, getProviderColor, getProviderInitial, getShortModelName } from '../util';
 
 type Tab = 'final' | 'responses' | 'rankings';
 
 @Component({
   selector: 'app-assistant-message',
-  imports: [MarkdownComponent, VisualDisplay],
+  imports: [MarkdownComponent, VisualDisplay, StudioDisplay],
   template: `
     @if (message(); as m) {
       @if (m.loading; as l) {
@@ -47,7 +49,11 @@ type Tab = 'final' | 'responses' | 'rankings';
                 }
               </div>
               <markdown class="prose-sm" [data]="s3.response"></markdown>
-              @if (s3.chart) { <app-visual-display [recommendation]="s3.chart" /> }
+              @if (viewMode.mode() === 'studio') {
+                @if (s3.studio_chart) { <app-studio-display [recommendation]="s3.studio_chart" /> }
+              } @else {
+                @if (s3.chart) { <app-visual-display [recommendation]="s3.chart" /> }
+              }
             }
 
             <!-- RESPONSES -->
@@ -95,6 +101,7 @@ type Tab = 'final' | 'responses' | 'rankings';
 })
 export class AssistantMessagePanel {
   private api = inject(ApiService);
+  viewMode = inject(ViewModeService);
   message = input.required<AssistantMessage>();
   query = input<string>('');
   conversationId = input<string>('');

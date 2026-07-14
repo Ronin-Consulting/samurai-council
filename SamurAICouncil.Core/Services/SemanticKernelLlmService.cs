@@ -432,7 +432,8 @@ public sealed class SemanticKernelLlmService : ILlmService, IDisposable
                         ToolName = toolCapture.Name,
                         Input = JsonSerializer.Serialize(new { query }),
                         Output = result,
-                        Chart = ExtractChartFromToolResult(result)
+                        Chart = ExtractChartFromToolResult(result),
+                        StudioChart = ExtractChartFromToolResult(result, "studioChart")
                     };
                     toolUsages.Add(toolUsage);
 
@@ -592,7 +593,8 @@ public sealed class SemanticKernelLlmService : ILlmService, IDisposable
                                 ToolName = toolUse.Name,
                                 Input = inputJson,
                                 Output = toolResult,
-                                Chart = ExtractChartFromToolResult(toolResult)
+                                Chart = ExtractChartFromToolResult(toolResult),
+                                StudioChart = ExtractChartFromToolResult(toolResult, "studioChart")
                             });
 
                             _logger.LogInformation("Tool {ToolName} executed successfully", toolUse.Name);
@@ -697,7 +699,8 @@ public sealed class SemanticKernelLlmService : ILlmService, IDisposable
                         ToolName = toolCapture.Name,
                         Input = JsonSerializer.Serialize(new { query }),
                         Output = result,
-                        Chart = ExtractChartFromToolResult(result)
+                        Chart = ExtractChartFromToolResult(result),
+                        StudioChart = ExtractChartFromToolResult(result, "studioChart")
                     });
 
                     _logger.LogInformation("Google tool {ToolName} executed successfully", toolCapture.Name);
@@ -752,7 +755,7 @@ public sealed class SemanticKernelLlmService : ILlmService, IDisposable
     /// <summary>
     /// Extracts chart recommendation from tool result JSON if present.
     /// </summary>
-    private static ChartRecommendation? ExtractChartFromToolResult(string result)
+    private static ChartRecommendation? ExtractChartFromToolResult(string result, string property = "chart")
     {
         if (string.IsNullOrWhiteSpace(result))
         {
@@ -762,7 +765,7 @@ public sealed class SemanticKernelLlmService : ILlmService, IDisposable
         try
         {
             using var doc = JsonDocument.Parse(result);
-            if (doc.RootElement.TryGetProperty("chart", out var chartElement) &&
+            if (doc.RootElement.TryGetProperty(property, out var chartElement) &&
                 chartElement.ValueKind != JsonValueKind.Null)
             {
                 return JsonSerializer.Deserialize<ChartRecommendation>(

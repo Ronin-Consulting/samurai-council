@@ -66,11 +66,17 @@ public class Stage3Response
     public bool UsedTools => ToolUsages.Count > 0;
 
     /// <summary>
-    /// Chart recommendation for visualizing query results.
+    /// Chart recommendation for visualizing query results (V1 "Classic").
     /// Propagated from Stage 1 tool usages.
     /// </summary>
     [JsonPropertyName("chart")]
     public ChartRecommendation? Chart { get; set; }
+
+    /// <summary>
+    /// Deterministically-classified recommendation (V2 "Studio"), propagated alongside <see cref="Chart"/>.
+    /// </summary>
+    [JsonPropertyName("studio_chart")]
+    public ChartRecommendation? StudioChart { get; set; }
 }
 
 /// <summary>

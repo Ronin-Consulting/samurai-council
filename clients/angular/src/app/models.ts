@@ -65,6 +65,7 @@ export interface Stage3Response {
   response: string;
   tool_usages: ToolUsage[];
   chart?: ChartRecommendation | null;
+  studio_chart?: ChartRecommendation | null;
 }
 
 export interface AggregateRanking {
