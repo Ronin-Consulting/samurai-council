@@ -200,6 +200,9 @@ export function studioChartOption(chart: ChartRecommendation, dark: boolean): an
     const total = values.reduce((a, b) => a + b, 0);
     return {
       ...base,
+      // Pie/donut slices are categories, not one series — each needs its own hue.
+      // Override the single-series "one hue" emphasis that `base` inherited.
+      color: c.series,
       legend: { bottom: 0, icon: 'circle', textStyle: { color: c.muted } },
       graphic: t === 'Donut' && total
         ? [{ type: 'text', left: 'center', top: '42%', style: { text: abbreviate(total), fill: c.primary, font: '600 20px system-ui' } }]
