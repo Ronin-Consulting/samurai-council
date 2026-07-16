@@ -295,22 +295,46 @@ public partial class CouncilService : ICouncilService
         var synthesisPrompt = $"""
             Based on the responses and peer reviews below, synthesize the best possible answer to the user's question.
             Draw from the strongest elements of each response while correcting any errors.
-            Provide a comprehensive, accurate, and well-structured final answer.
 
             {contextBuilder}
 
-            Please provide your final synthesized response:
+            Write the final answer as a concise **executive brief** for a busy decision-maker:
+
+            - Open with ONE bold sentence that directly answers the question — the bottom line.
+            - Follow with 2–4 short sentences of interpretation: what it means, the key comparison
+              or trend, and any caveat. Expand slightly only if the question genuinely needs more depth.
+            - Round figures for readability (e.g. "$2.23B", not "$2,228,460,305.60"); give exact
+              values only when precision truly matters.
+            - When the data is numeric or tabular, DO NOT reproduce the full table or restate every
+              row/number in prose — a chart or table is already displayed to the user alongside your
+              answer. Refer to it briefly (e.g. "see the breakdown below") instead of listing figures.
+            - Do NOT embed images or image/file links (no Markdown image syntax like `![...](...)`) —
+              charts and tables are rendered automatically beside your answer; an image link only
+              produces a broken image.
+            - Use clean Markdown: bold for the lead answer and key terms; a short bullet list only if
+              there are genuinely distinct points; a proper GFM table (| … | with a `---` separator
+              row) ONLY if a small table is essential and is not already visualized. Avoid headings in
+              a brief answer.
+            - Be tight and professional. Prefer clarity over completeness; do not restate the question
+              or pad with filler.
+
+            Final answer:
             """;
 
         // Check if tools should be enabled for Stage 3
         var tools = GetToolsForQuery(userQuery);
         var hasTools = tools.Count > 0;
 
+        const string styleGuide =
+            " Write like a senior analyst briefing an executive: lead with the answer, stay concise, " +
+            "and format cleanly in Markdown. Never dump raw data tables or long number lists in prose when " +
+            "a chart or table is already shown — interpret the data, don't transcribe it.";
+
         var systemPrompt = hasTools
             ? "You are the chairman of an AI council with access to company data tools. " +
               "Your role is to synthesize the best final answer from multiple AI responses and their peer reviews. " +
-              "You can use the query_company_data tool to verify or supplement information if needed."
-            : "You are the chairman of an AI council. Your role is to synthesize the best final answer from multiple AI responses and their peer reviews.";
+              "You can use the query_company_data tool to verify or supplement information if needed." + styleGuide
+            : "You are the chairman of an AI council. Your role is to synthesize the best final answer from multiple AI responses and their peer reviews." + styleGuide;
 
         var messages = new List<ChatMessage>
         {
