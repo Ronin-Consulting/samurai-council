@@ -57,7 +57,7 @@ type Tab = 'final' | 'responses' | 'rankings';
                   </span>
                 }
               </div>
-              <markdown class="answer" [data]="s3.response"></markdown>
+              <markdown class="prose prose-sm answer answer-final" [data]="s3.response"></markdown>
               @if (viewMode.mode() === 'studio') {
                 @if (s3.studio_chart) { <app-studio-display [recommendation]="s3.studio_chart" /> }
               } @else {
@@ -74,7 +74,7 @@ type Tab = 'final' | 'responses' | 'rankings';
                     <span class="font-medium text-sm">{{ short(r.model) }}</span>
                     @if (r.tool_usages.length) { <span class="rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] text-neutral-500 dark:border-neutral-700">🔧 tools</span> }
                   </div>
-                  <markdown class="answer" [data]="r.response"></markdown>
+                  <markdown class="prose prose-sm answer" [data]="r.response"></markdown>
                 </div>
               }
             }
@@ -102,7 +102,7 @@ type Tab = 'final' | 'responses' | 'rankings';
               @for (rk of m.stage2 ?? []; track rk.model) {
                 <div class="mb-3">
                   <div class="font-medium text-sm mb-1">{{ short(rk.model) }}</div>
-                  <markdown class="answer text-neutral-600 dark:text-neutral-300" [data]="deanon(rk.ranking, m.metadata?.label_to_model)"></markdown>
+                  <markdown class="prose prose-sm answer" [data]="deanon(rk.ranking, m.metadata?.label_to_model)"></markdown>
                 </div>
               }
             }

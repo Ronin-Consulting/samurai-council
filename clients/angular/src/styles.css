@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* Source Serif 4 (variable serif) — display face, bundled offline via @fontsource. */
+@import "@fontsource-variable/source-serif-4/index.css";
+@plugin "@tailwindcss/typography";
 
 /* Class-based dark mode: `dark:` responds to a `.dark` class on <html> (toggled by ThemeService). */
 @custom-variant dark (&:where(.dark, .dark *));
@@ -28,7 +31,17 @@
   --accent-hover: #a81f1f;
   --gold: #b8912f;
 
+  /* Editorial display serif (used with restraint: wordmark, headlines, ledes). */
+  --font-display: "Source Serif 4 Variable", Georgia, "Times New Roman", serif;
+
   color-scheme: light dark;
+}
+
+/* Display serif — clean and professional, used with restraint. */
+.font-display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  letter-spacing: -0.01em;
 }
 
 html,
@@ -74,75 +87,98 @@ html.dark * {
 }
 
 /*
- * Council answer readability. No @tailwindcss/typography is installed, so the
- * Tailwind reset strips heading/list/table styling from rendered markdown —
- * these rules restore a comfortable, editorial reading experience. Scoped to
- * `.answer` so the (white-on-red) user bubble is untouched.
+ * Council answer readability, rendered with @tailwindcss/typography (`prose`).
+ * We theme prose's CSS variables to the Refined Dark tokens (light + dark) rather
+ * than using prose-invert, so the palette matches the rest of the app exactly.
+ * `.answer` is added alongside `prose prose-sm` on the markdown host; the
+ * (white-on-red) user bubble stays plain because it has no `prose`/`.answer`.
  */
 .answer {
-  line-height: 1.65;
-  font-size: 0.925rem;
+  font-size: 0.9375rem; /* 15px base; prose's em-based rhythm scales from here */
+
+  /* prose theme — light */
+  --tw-prose-body: var(--color-neutral-800);
+  --tw-prose-headings: var(--color-neutral-900);
+  --tw-prose-lead: var(--color-neutral-600);
+  --tw-prose-links: var(--accent);
+  --tw-prose-bold: var(--color-neutral-900);
+  --tw-prose-counters: var(--color-neutral-500);
+  --tw-prose-bullets: var(--color-neutral-400);
+  --tw-prose-hr: var(--color-neutral-200);
+  --tw-prose-quotes: var(--color-neutral-600);
+  --tw-prose-quote-borders: var(--accent);
+  --tw-prose-captions: var(--color-neutral-500);
+  --tw-prose-code: var(--color-neutral-900);
+  --tw-prose-pre-code: var(--color-neutral-800);
+  --tw-prose-pre-bg: var(--color-neutral-100);
+  --tw-prose-th-borders: var(--color-neutral-300);
+  --tw-prose-td-borders: var(--color-neutral-200);
+
+  /* PrismJS token colors — light */
+  --code-cmt: #6b6960; --code-kw: #8250df; --code-str: #0a7d33;
+  --code-num: #b8531a; --code-fn: #0969da; --code-punc: #57606a;
 }
-.answer > :first-child { margin-top: 0; }
-.answer > :last-child { margin-bottom: 0; }
-.answer p { margin: 0.7em 0; }
-.answer h1, .answer h2, .answer h3, .answer h4 {
-  font-weight: 600;
-  line-height: 1.3;
+html.dark .answer {
+  /* prose theme — dark */
+  --tw-prose-body: var(--color-neutral-200);
+  --tw-prose-headings: var(--color-neutral-100);
+  --tw-prose-lead: var(--color-neutral-300);
+  --tw-prose-links: #e5605d;
+  --tw-prose-bold: var(--color-neutral-100);
+  --tw-prose-counters: var(--color-neutral-400);
+  --tw-prose-bullets: var(--color-neutral-500);
+  --tw-prose-hr: var(--color-neutral-800);
+  --tw-prose-quotes: var(--color-neutral-300);
+  --tw-prose-quote-borders: #e5605d;
+  --tw-prose-captions: var(--color-neutral-400);
+  --tw-prose-code: var(--color-neutral-100);
+  --tw-prose-pre-code: var(--color-neutral-200);
+  --tw-prose-pre-bg: var(--color-neutral-900);
+  --tw-prose-th-borders: var(--color-neutral-700);
+  --tw-prose-td-borders: var(--color-neutral-800);
+
+  /* PrismJS token colors — dark */
+  --code-cmt: #8a8880; --code-kw: #c586e0; --code-str: #7ee787;
+  --code-num: #ffab70; --code-fn: #79c0ff; --code-punc: #a3a19a;
+}
+
+/* Section headings within an answer wear the display serif (editorial cohesion). */
+.answer :where(h1, h2, h3, h4) {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
   letter-spacing: -0.01em;
-  margin: 1.2em 0 0.5em;
 }
-.answer h1 { font-size: 1.32rem; }
-.answer h2 { font-size: 1.14rem; }
-.answer h3 { font-size: 1.02rem; }
-.answer ul, .answer ol { margin: 0.7em 0; padding-left: 1.4em; }
-.answer ul { list-style: disc; }
-.answer ol { list-style: decimal; }
-.answer li { margin: 0.3em 0; }
-.answer li::marker { color: var(--color-neutral-400); }
-.answer a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
-.answer strong { font-weight: 600; }
-.answer code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.85em;
-  background: var(--color-neutral-100);
-  padding: 0.15em 0.4em;
-  border-radius: 6px;
+/* The final answer's opening sentence is an editorial standfirst: display serif, larger. */
+.answer-final > p:first-child {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-size: 1.28em;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  color: var(--tw-prose-headings);
 }
-html.dark .answer code { background: var(--color-neutral-800); }
-.answer pre {
-  background: var(--color-neutral-100);
-  border: 1px solid var(--color-neutral-200);
-  border-radius: 12px;
-  padding: 0.9em 1em;
-  overflow-x: auto;
-  margin: 0.9em 0;
-}
-html.dark .answer pre { background: var(--color-neutral-900); border-color: var(--color-neutral-700); }
-.answer pre code { background: none; padding: 0; }
-.answer blockquote {
-  border-left: 2px solid var(--accent);
-  padding-left: 1em;
-  margin: 0.9em 0;
-  color: var(--color-neutral-500);
-}
-.answer table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 0.9em 0;
-  font-size: 0.9em;
-  font-variant-numeric: tabular-nums;
-}
-.answer th, .answer td {
-  border: 1px solid var(--color-neutral-200);
-  padding: 0.45em 0.7em;
-  text-align: left;
-}
-html.dark .answer th, html.dark .answer td { border-color: var(--color-neutral-800); }
-.answer th { background: var(--color-neutral-100); font-weight: 600; }
-html.dark .answer th { background: var(--color-neutral-800); }
-.answer hr { border: 0; border-top: 1px solid var(--color-neutral-200); margin: 1.2em 0; }
-html.dark .answer hr { border-color: var(--color-neutral-800); }
+
+/* Small refinements on top of prose */
+/* Answers never embed images — all visuals come from the chart pipeline. Guard against
+   the model emitting a Markdown image link (which would render as a broken image). */
+.answer :where(img) { display: none; }
+.answer :where(p):has(> img) { display: none; }              /* collapse a standalone image line */
+.answer :where(code)::before,
+.answer :where(code)::after { content: none; }               /* drop prose's literal backticks */
+.answer :where(blockquote p:first-of-type)::before,
+.answer :where(blockquote p:first-of-type)::after { content: none; }
+.answer :where(pre) { border: 1px solid var(--tw-prose-td-borders); }
+.answer :where(table) { font-variant-numeric: tabular-nums; }
+
+/* PrismJS syntax colors (theme-aware via the token vars above) */
+.answer :where(.token.comment, .token.prolog, .token.doctype, .token.cdata) { color: var(--code-cmt); font-style: italic; }
+.answer :where(.token.punctuation) { color: var(--code-punc); }
+.answer :where(.token.keyword, .token.rule, .token.important, .token.atrule, .token.selector) { color: var(--code-kw); }
+.answer :where(.token.string, .token.char, .token.attr-value, .token.regex, .token.url) { color: var(--code-str); }
+.answer :where(.token.number, .token.boolean, .token.constant, .token.symbol) { color: var(--code-num); }
+.answer :where(.token.function, .token.class-name, .token.property) { color: var(--code-fn); }
+.answer :where(.token.operator, .token.entity, .token.tag, .token.variable) { color: var(--code-punc); }
 
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -15,11 +15,14 @@ import { AssistantMessagePanel } from './assistant-message';
         <div class="mx-auto max-w-3xl px-4 py-6">
           @if (!store.current() || store.current()!.messages.length === 0) {
             <div class="mt-24 flex flex-col items-center text-center">
-              <span class="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-400">
-                <span class="inline-block h-2 w-2 rounded-full bg-red-600"></span> SamurAI Council
+              <span class="mb-5 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                <span class="h-px w-8 bg-neutral-300 dark:bg-neutral-700"></span>
+                <span class="inline-block h-1.5 w-1.5 rounded-full bg-red-600"></span>
+                SamurAI Council
+                <span class="h-px w-8 bg-neutral-300 dark:bg-neutral-700"></span>
               </span>
-              <h1 class="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">How can the council help?</h1>
-              <p class="mt-2 text-neutral-500">Ask a question — three models deliberate, a chairman synthesizes.</p>
+              <h1 class="font-display text-4xl font-medium tracking-tight text-neutral-900 dark:text-neutral-100">How can the council help?</h1>
+              <p class="mt-3 text-neutral-500">Ask a question — three models deliberate, a chairman synthesizes.</p>
               <div class="mt-7 flex flex-wrap justify-center gap-2">
                 @for (ex of examples; track ex) {
                   <button (click)="sendText(ex)"
@@ -32,8 +35,8 @@ import { AssistantMessagePanel } from './assistant-message';
           } @else {
             @for (m of store.current()!.messages; track $index; let i = $index) {
               @if (m.role === 'user') {
-                <div class="mb-4 flex justify-end">
-                  <div class="max-w-[80%] rounded-2xl bg-red-600 px-4 py-2 text-white">
+                <div class="mb-5 flex justify-end">
+                  <div class="max-w-[80%] rounded-2xl border border-neutral-200 bg-neutral-100 px-4 py-2.5 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
                     <markdown [data]="userText(m)"></markdown>
                   </div>
                 </div>
