@@ -35,8 +35,10 @@ public partial class StudioClassifier
 
         var columns = data[0].Keys.ToArray();
         var temporal = columns.Where(c => IsTemporal(c, data)).ToList();
-        var numeric = columns.Where(c => !IsTemporal(c, data) && IsNumeric(c, data)).ToList();
-        var dims = columns.Where(c => !numeric.Contains(c)).ToList(); // temporal + text
+        // Identifier/key columns (…Id, …Key, …Code) are numeric in type but are NOT measures —
+        // treat them as dimensions so a listing isn't plotted as if the key were a value.
+        var numeric = columns.Where(c => !IsTemporal(c, data) && IsNumeric(c, data) && !IsIdentifier(c)).ToList();
+        var dims = columns.Where(c => !numeric.Contains(c)).ToList(); // temporal + text + identifiers
         var rowCount = data.Count;
 
         // 1) single row, only numbers → KPI tiles
@@ -51,19 +53,33 @@ public partial class StudioClassifier
             return BuildScatter(query, data, numeric[0], numeric[1]);
         }
 
+        // 1b) redundant temporal columns (e.g. CalendarYear + CalendarMonth + MonthLabel) describe
+        // ONE time axis. If a temporal column uniquely orders the rows and every dimension is
+        // temporal, it's a trend over that axis — a line — not a 3-dimension table or a pivot.
+        if (numeric.Count is >= 1 and <= 6 && dims.Count >= 1 && dims.All(temporal.Contains)
+            && rowCount <= MaxLinePoints && ChooseTimeAxis(temporal, data, rowCount) is { } axis)
+        {
+            return BuildCategory(ChartType.Line, query, data, axis, numeric.Take(6).ToList());
+        }
+
         // 6) no measure, or too many dimensions → table
         if (numeric.Count == 0 || dims.Count >= 3)
         {
             return BuildTable(data);
         }
 
-        // 2) one dimension + one measure → line (temporal) or bar
+        // 2) one dimension + one measure → pie (proportions, if the query asks for them),
+        // line (temporal), or bar
         if (dims.Count == 1 && numeric.Count == 1)
         {
             var dim = dims[0];
             if (temporal.Contains(dim) && rowCount <= MaxLinePoints)
             {
                 return BuildCategory(ChartType.Line, query, data, dim, [numeric[0]]);
+            }
+            if (!temporal.Contains(dim) && rowCount <= MaxPieSlices && CompositionRegex().IsMatch(query))
+            {
+                return BuildPie(query, data, dim, numeric[0]);
             }
             if (rowCount <= MaxBarCategories)
             {
@@ -77,6 +93,27 @@ public partial class StudioClassifier
         if (dims.Count == 1 && numeric.Count >= 2)
         {
             var dim = dims[0];
+
+            // Share/composition: a magnitude paired with a percentage column describes proportions
+            // of a whole. If the query itself asks for a share/percentage/breakdown, honor that as
+            // a Pie — the standard form for "what % of X is each Y" (see the documented example
+            // query list in CLAUDE.md/README.md). Otherwise the percentage column is incidental, so
+            // just plot the magnitude alone as a single-measure bar/line rather than grouping
+            // amount vs. percent side by side.
+            if (numeric.Count == 2 && numeric.Count(IsPercentageName) == 1)
+            {
+                var measure = numeric.First(n => !IsPercentageName(n));
+                if (!temporal.Contains(dim) && rowCount <= MaxPieSlices && CompositionRegex().IsMatch(query))
+                {
+                    return BuildPie(query, data, dim, measure);
+                }
+                if (temporal.Contains(dim) && rowCount <= MaxLinePoints)
+                    return BuildCategory(ChartType.Line, query, data, dim, [measure]);
+                if (rowCount <= MaxBarCategories)
+                    return HorizontalIfLong(BuildCategory(ChartType.Bar, query, data, dim, [measure]));
+                return BuildTable(data);
+            }
+
             var type = temporal.Contains(dim) ? ChartType.Line : ChartType.GroupedBar;
             if (rowCount <= (type == ChartType.Line ? MaxLinePoints : MaxBarCategories))
             {
@@ -106,6 +143,27 @@ public partial class StudioClassifier
             Unit = UnitFor(c),
         }).ToArray();
         return new ChartRecommendation { Type = ChartType.Stat, Title = string.Empty, Stats = stats };
+    }
+
+    /// <summary>
+    /// Proportions of a whole for a single dimension — used only when the query itself asks for a
+    /// share/percentage/breakdown (see <see cref="CompositionRegex"/>). The measure's raw values are
+    /// charted (not a pre-computed percentage column, if one exists) so the slice proportions ECharts
+    /// derives are always consistent with the underlying magnitudes, not a possibly-rounded duplicate.
+    /// </summary>
+    private static ChartRecommendation BuildPie(
+        string query, IReadOnlyList<Dictionary<string, object?>> data, string dim, string measure)
+    {
+        var rows = data.Take(MaxPieSlices).ToList();
+        var labels = rows.Select(r => ToLabel(r[dim])).ToArray();
+        var values = rows.Select(r => ToDouble(r[measure]) ?? 0).ToArray();
+        return new ChartRecommendation
+        {
+            Type = ChartType.Pie,
+            Title = TitleFrom(query),
+            Labels = labels,
+            Series = [new ChartSeriesData { Name = Prettify(measure), Values = values }],
+        };
     }
 
     private static ChartRecommendation BuildCategory(
@@ -224,6 +282,32 @@ public partial class StudioClassifier
         }
         return seen > 0;
     }
+
+    /// <summary>
+    /// A temporal column that uniquely orders the rows is the real x-axis; redundant temporal
+    /// columns (e.g. Year alongside Month) collapse into it. Prefers a text-labelled column
+    /// (e.g. "Jan") over a numeric one (e.g. 200901) for readable ticks. Null if none qualifies.
+    /// </summary>
+    private static string? ChooseTimeAxis(List<string> temporal, IReadOnlyList<Dictionary<string, object?>> data, int rowCount)
+    {
+        var unique = temporal
+            .Where(c => data.Select(r => ToLabel(r.GetValueOrDefault(c))).Distinct().Count() == rowCount)
+            .ToList();
+        if (unique.Count == 0) return null;
+        return unique.FirstOrDefault(c => data.Any(r => r.GetValueOrDefault(c) is string)) ?? unique[0];
+    }
+
+    /// <summary>Identifier/key columns (…Id, …Key, …Code, …Guid/Uuid) are numeric in type but not measures.</summary>
+    private static bool IsIdentifier(string col)
+    {
+        var spaced = Regex.Replace(col.Replace('_', ' '), "(?<=[a-z0-9])(?=[A-Z])", " ");
+        var tokens = spaced.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return tokens.Length > 0 && tokens[^1].ToLowerInvariant() is "id" or "key" or "code" or "guid" or "uuid";
+    }
+
+    /// <summary>A percentage/share measure column (detected by name).</summary>
+    private static bool IsPercentageName(string col)
+        => Regex.IsMatch(col, "percent|pct|share|proportion", RegexOptions.IgnoreCase);
 
     // ---- value helpers ----
 
