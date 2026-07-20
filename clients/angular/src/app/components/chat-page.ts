@@ -86,11 +86,70 @@ export class ChatPage implements OnInit {
     this.route.paramMap.subscribe((pm) => {
       const id = pm.get('id');
       if (id) {
-        if (this.store.current()?.id !== id) this.store.load(id);
+        if (this.store.current()?.id !== id) {
+          this.store.load(id).then(() => this.resumeIfInterrupted(id));
+        }
       } else if (!this.store.isProcessing()) {
         this.store.startNew();
       }
     });
+  }
+
+  /**
+   * A page load (e.g. a browser refresh mid-turn) can land on a conversation whose last
+   * message is a user prompt with no assistant reply yet — the backend keeps running the
+   * council turn independently of any live connection, so the reply usually just hasn't been
+   * persisted yet. Show the same loading stepper a live run would and poll until it lands,
+   * rather than silently looking like nothing happened.
+   */
+  private async resumeIfInterrupted(convId: string): Promise<void> {
+    const conv = this.store.current();
+    if (!conv || conv.id !== convId || conv.messages.length === 0) return;
+    if (conv.messages[conv.messages.length - 1].role !== 'user') return;
+
+    this.store.appendMessage({ role: 'assistant', loading: { stage1: true, stage2: false, stage3: false } });
+    this.store.isProcessing.set(true);
+
+    const POLL_INTERVAL_MS = 3000;
+    const MAX_ATTEMPTS = 200; // ~10 minutes
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      if (this.store.current()?.id !== convId) return; // navigated away
+      if (await this.pollOnce(convId)) return;
+    }
+
+    if (this.store.current()?.id === convId) {
+      this.store.updateLastMessage((m) => ({
+        ...(m as AssistantMessage),
+        loading: null,
+        stage3: {
+          model: 'error',
+          response: 'This is taking longer than expected. Refresh the page in a bit to check again.',
+          tool_usages: [],
+        },
+      }));
+      this.store.isProcessing.set(false);
+    }
+  }
+
+  /** Re-fetches the conversation; returns true once a real assistant reply has landed. */
+  private async pollOnce(convId: string): Promise<boolean> {
+    const ok = await this.store.load(convId);
+    if (!ok) return false; // transient fetch failure (e.g. backend mid-restart) — keep waiting
+
+    const conv = this.store.current();
+    if (!conv || conv.id !== convId) return true; // genuinely gone (404) or navigated away
+
+    const last = conv.messages[conv.messages.length - 1];
+    if (!last || last.role !== 'user') {
+      this.store.isProcessing.set(false);
+      return true;
+    }
+
+    // Still unanswered — store.load() replaced `current` with server truth, which wiped our
+    // local loading placeholder. Re-append it so the stepper keeps showing.
+    this.store.appendMessage({ role: 'assistant', loading: { stage1: true, stage2: false, stage3: false } });
+    return false;
   }
 
   userText(m: Message): string {

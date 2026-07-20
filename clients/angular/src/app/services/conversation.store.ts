@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from './api.service';
@@ -16,9 +17,19 @@ export class ConversationStore {
     try { this.conversations.set(await firstValueFrom(this.api.listConversations())); } catch { /* ignore */ }
   }
 
-  async load(id: string): Promise<void> {
-    try { this.current.set(await firstValueFrom(this.api.getConversation(id))); }
-    catch { this.current.set(null); }
+  /**
+   * Fetches a conversation. Returns false on failure without touching `current` — a transient
+   * backend blip (e.g. the container mid-restart) must not look identical to "this conversation
+   * doesn't exist" and wipe out whatever's already showing. Only a genuine 404 clears `current`.
+   */
+  async load(id: string): Promise<boolean> {
+    try {
+      this.current.set(await firstValueFrom(this.api.getConversation(id)));
+      return true;
+    } catch (err) {
+      if (err instanceof HttpErrorResponse && err.status === 404) this.current.set(null);
+      return false;
+    }
   }
 
   startNew(): void {

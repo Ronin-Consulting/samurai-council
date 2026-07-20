@@ -160,13 +160,36 @@ public class CouncilConversationService
         Func<CouncilStreamEvent, Task> emit,
         CancellationToken ct = default)
     {
+        // Best-effort push over SSE. The generation/persistence work below deliberately runs on
+        // `genCt` (CancellationToken.None), NOT the request's `ct` (tied to the client's SSE
+        // connection lifetime) — see the comment on `genCt`. A push failure here (client
+        // disconnected, e.g. a browser refresh) is therefore expected in that case and must
+        // never abort the underlying council run: the run keeps going and still gets persisted.
+        async Task SafeEmit(CouncilStreamEvent evt)
+        {
+            try { await emit(evt); }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Could not push {Event} event for {ConversationId} (client likely disconnected)", evt.Event, conversationId);
+            }
+        }
+
+        // Generation and persistence intentionally use CancellationToken.None rather than the
+        // request's `ct`. `ct` is bound to the client's live HTTP/SSE connection (ASP.NET Core
+        // auto-cancels it on disconnect, e.g. a browser refresh) — but a council run can take
+        // minutes, and losing it entirely because the client navigated away means the user comes
+        // back to a conversation that silently shows nothing. The run must survive independently
+        // of whether anyone is still listening; SafeEmit above handles the "nobody's listening
+        // anymore" half of that.
+        var genCt = CancellationToken.None;
+
         // Determine whether this is the first exchange (drives title generation).
         var isFirstExchange = false;
         if (_messageRepository != null)
         {
             try
             {
-                var existing = await _messageRepository.GetMessagesForConversationAsync(conversationId, ct);
+                var existing = await _messageRepository.GetMessagesForConversationAsync(conversationId, genCt);
                 isFirstExchange = existing.Count == 0;
             }
             catch (Exception ex) { _logger.LogWarning(ex, "Could not count messages for {ConversationId}", conversationId); }
@@ -175,7 +198,7 @@ public class CouncilConversationService
         // Persist the user message.
         if (_messageRepository != null)
         {
-            try { await _messageRepository.AddUserMessageAsync(conversationId, userQuery, ct); }
+            try { await _messageRepository.AddUserMessageAsync(conversationId, userQuery, genCt); }
             catch (Exception ex) { _logger.LogError(ex, "Failed to save user message for {ConversationId}", conversationId); }
         }
 
@@ -183,12 +206,12 @@ public class CouncilConversationService
 
         try
         {
-            await emit(new CouncilStreamEvent("loading", new LoadingState { Stage1 = true }));
+            await SafeEmit(new CouncilStreamEvent("loading", new LoadingState { Stage1 = true }));
 
             // Stage 1
-            var stage1 = await _council.Stage1CollectResponsesAsync(userQuery, ct);
+            var stage1 = await _council.Stage1CollectResponsesAsync(userQuery, genCt);
             assistant.Stage1 = stage1;
-            await emit(new CouncilStreamEvent("stage1", stage1));
+            await SafeEmit(new CouncilStreamEvent("stage1", stage1));
 
             if (stage1.Count == 0)
             {
@@ -198,15 +221,16 @@ public class CouncilConversationService
                     Response = "Unable to get responses from any AI model. Please check your API configuration."
                 };
                 assistant.Stage3 = errStage3;
-                await emit(new CouncilStreamEvent("stage3", errStage3));
-                await emit(new CouncilStreamEvent("done", null));
+                await PersistAssistantMessage(conversationId, assistant.Stage1, [], errStage3, null, genCt);
+                await SafeEmit(new CouncilStreamEvent("stage3", errStage3));
+                await SafeEmit(new CouncilStreamEvent("done", null));
                 return;
             }
 
-            await emit(new CouncilStreamEvent("loading", new LoadingState { Stage2 = true }));
+            await SafeEmit(new CouncilStreamEvent("loading", new LoadingState { Stage2 = true }));
 
             // Stage 2 + aggregate rankings
-            var (stage2, labelToModel) = await _council.Stage2CollectRankingsAsync(userQuery, stage1, ct);
+            var (stage2, labelToModel) = await _council.Stage2CollectRankingsAsync(userQuery, stage1, genCt);
             var aggregateRankings = AggregateRankingCalculator.Calculate(stage2, labelToModel);
             var metadata = new CouncilMetadata
             {
@@ -217,12 +241,12 @@ public class CouncilConversationService
             };
             assistant.Stage2 = stage2;
             assistant.Metadata = metadata;
-            await emit(new CouncilStreamEvent("stage2", new { rankings = stage2, metadata }));
+            await SafeEmit(new CouncilStreamEvent("stage2", new { rankings = stage2, metadata }));
 
-            await emit(new CouncilStreamEvent("loading", new LoadingState { Stage3 = true }));
+            await SafeEmit(new CouncilStreamEvent("loading", new LoadingState { Stage3 = true }));
 
             // Stage 3 + chart propagation (top aggregate-ranked Stage 1 response -> Stage 3)
-            var stage3 = await _council.Stage3SynthesizeFinalAsync(userQuery, stage1, stage2, ct);
+            var stage3 = await _council.Stage3SynthesizeFinalAsync(userQuery, stage1, stage2, genCt);
 
             ChartRecommendation? chart = null;
             if (aggregateRankings.Count > 0)
@@ -255,50 +279,64 @@ public class CouncilConversationService
 
             assistant.Stage3 = stage3;
             assistant.Loading = null;
-            await emit(new CouncilStreamEvent("stage3", stage3));
+            await SafeEmit(new CouncilStreamEvent("stage3", stage3));
 
             // Persist the completed assistant message.
-            if (_messageRepository != null && assistant.Stage3 != null)
-            {
-                try
-                {
-                    await _messageRepository.AddAssistantMessageAsync(
-                        conversationId, assistant.Stage1, assistant.Stage2!, assistant.Stage3, assistant.Metadata, ct);
-                }
-                catch (Exception ex) { _logger.LogError(ex, "Failed to save assistant message for {ConversationId}", conversationId); }
-            }
+            await PersistAssistantMessage(conversationId, assistant.Stage1, assistant.Stage2!, assistant.Stage3, assistant.Metadata, genCt);
 
-            // Title generation for the first exchange.
+            // Title generation for the first exchange. Runs on genCt (not the request's ct) for
+            // consistency with the rest of this method — see the comment on genCt above.
             if (isFirstExchange)
             {
+                string? title = null;
                 try
                 {
-                    var title = await _council.GenerateConversationTitleAsync(userQuery, ct);
+                    title = await _council.GenerateConversationTitleAsync(userQuery, genCt);
                     if (!string.IsNullOrWhiteSpace(title))
                     {
-                        await UpdateTitleAsync(conversationId, title, ct);
-                        await emit(new CouncilStreamEvent("title", new { title }));
+                        await UpdateTitleAsync(conversationId, title, genCt);
                     }
                 }
                 catch (Exception ex) { _logger.LogWarning(ex, "Title generation failed for {ConversationId}", conversationId); }
+
+                if (!string.IsNullOrWhiteSpace(title))
+                {
+                    await SafeEmit(new CouncilStreamEvent("title", new { title }));
+                }
             }
 
-            await emit(new CouncilStreamEvent("done", null));
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogInformation("Council run cancelled for {ConversationId}", conversationId);
-            throw;
+            await SafeEmit(new CouncilStreamEvent("done", null));
         }
         catch (Exception ex)
         {
+            // Deliberately catches OperationCanceledException too (it's an Exception): since
+            // the work above runs on genCt (never cancelled), this path is reached only by a
+            // genuine failure, not a client disconnect — so it should always leave a persisted,
+            // reload-visible record rather than silently vanishing.
             _logger.LogError(ex, "Council run failed for {ConversationId}", conversationId);
             var errStage3 = new Stage3Response
             {
                 Model = "error",
                 Response = $"An error occurred while processing your request: {ex.Message}"
             };
-            await emit(new CouncilStreamEvent("error", new { message = ex.Message, stage3 = errStage3 }));
+            await PersistAssistantMessage(conversationId, assistant.Stage1 ?? [], assistant.Stage2 ?? [], errStage3, assistant.Metadata, genCt);
+            await SafeEmit(new CouncilStreamEvent("error", new { message = ex.Message, stage3 = errStage3 }));
         }
+    }
+
+    private async Task PersistAssistantMessage(
+        Guid conversationId,
+        List<Stage1Response>? stage1,
+        List<Stage2Ranking> stage2,
+        Stage3Response stage3,
+        CouncilMetadata? metadata,
+        CancellationToken ct)
+    {
+        if (_messageRepository == null) return;
+        try
+        {
+            await _messageRepository.AddAssistantMessageAsync(conversationId, stage1 ?? [], stage2, stage3, metadata, ct);
+        }
+        catch (Exception ex) { _logger.LogError(ex, "Failed to save assistant message for {ConversationId}", conversationId); }
     }
 }
