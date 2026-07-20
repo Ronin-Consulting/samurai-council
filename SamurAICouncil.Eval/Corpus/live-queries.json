@@ -33,16 +33,25 @@
       "id": "live-channel-share",
       "query": "What percentage of sales came from each channel in 2008?",
       "edgeCategory": "composition",
-      "expectedForm": "Bar",
-      "acceptableForms": ["Bar", "StackedBar", "Pie", "Donut", "Table"],
-      "notes": "Composition intent. Classic may pick pie/donut; Studio never emits pie (bar/stacked) — a key divergence to observe."
+      "expectedForm": "Pie",
+      "acceptableForms": ["Pie", "Bar", "StackedBar", "Donut", "Table"],
+      "notes": "Composition intent. Studio routes this to Pie via its composition-regex check on the query text."
     },
     {
       "id": "live-channel-by-year",
       "query": "Show sales by channel for 2007, 2008 and 2009.",
-      "edgeCategory": "two-dim-pivot",
-      "expectedForm": "GroupedBar",
-      "acceptableForms": ["GroupedBar", "StackedBar", "Line", "Table"]
+      "edgeCategory": "category-magnitude",
+      "expectedForm": "Bar",
+      "acceptableForms": ["Bar", "GroupedBar", "StackedBar", "Line", "Table"],
+      "notes": "The SQL result for this query only has one dimension (Channel) — text-to-SQL doesn't break it out by year despite the phrasing, so this exercises the 1-dim/1-measure path, not a real 2-dim pivot. The genuine 2-dim -> GroupedBar path is covered by core-shapes.json's pivot-grouped fixture instead."
+    },
+    {
+      "id": "live-monthly-trend-multiyear",
+      "query": "Show monthly sales trends.",
+      "edgeCategory": "temporal-multi-year",
+      "expectedForm": "Line",
+      "acceptableForms": ["Line", "Area"],
+      "notes": "Unscoped -> spans all 3 years of ContosoRetailDW data (36 rows). Studio's SQL result denormalizes Year/Month/MonthLabel as separate columns, none of which is unique alone across years — this is the exact shape that exposed the original composite-time-axis gap."
     },
     {
       "id": "live-list-categories",
