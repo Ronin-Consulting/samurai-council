@@ -1,0 +1,158 @@
+{
+  "cases": [
+    {
+      "id": "table-many-rows",
+      "query": "List sales for every store in 2008.",
+      "edgeCategory": "many-categories",
+      "expectedForm": "Table",
+      "acceptableForms": ["Table"],
+      "notes": "1 dim + 1 measure but > 15 rows -> table (too many for a readable bar).",
+      "columns": [ { "name": "Store", "type": "text" }, { "name": "Sales", "type": "number" } ],
+      "rows": [
+        ["Store 01", 41200000.0], ["Store 02", 38800000.0], ["Store 03", 35100000.0],
+        ["Store 04", 33900000.0], ["Store 05", 31500000.0], ["Store 06", 29800000.0],
+        ["Store 07", 28200000.0], ["Store 08", 26900000.0], ["Store 09", 25100000.0],
+        ["Store 10", 23800000.0], ["Store 11", 22400000.0], ["Store 12", 21100000.0],
+        ["Store 13", 19900000.0], ["Store 14", 18700000.0], ["Store 15", 17500000.0],
+        ["Store 16", 16300000.0], ["Store 17", 15100000.0], ["Store 18", 13900000.0]
+      ]
+    },
+    {
+      "id": "table-3dims",
+      "query": "Break down sales by channel, region and year.",
+      "edgeCategory": "three-dimensions",
+      "expectedForm": "Table",
+      "acceptableForms": ["Table"],
+      "notes": ">= 3 dimensions -> table.",
+      "columns": [
+        { "name": "Channel", "type": "text" },
+        { "name": "Region", "type": "text" },
+        { "name": "Year", "type": "text" },
+        { "name": "Sales", "type": "number" }
+      ],
+      "rows": [
+        ["Store", "North America", "2008", 1200000000.0],
+        ["Store", "Europe", "2008", 700000000.0],
+        ["Online", "North America", "2008", 520000000.0],
+        ["Online", "Europe", "2008", 300000000.0]
+      ]
+    },
+    {
+      "id": "table-0numeric",
+      "query": "List the products and their categories.",
+      "edgeCategory": "no-measure",
+      "expectedForm": "Table",
+      "acceptableForms": ["Table"],
+      "notes": "0 numeric columns -> table.",
+      "columns": [ { "name": "ProductName", "type": "text" }, { "name": "Category", "type": "text" } ],
+      "rows": [
+        ["Contoso 4G LTE Phone", "Cell Phones"],
+        ["Adventure Works 26 inch LCD TV", "TV and Video"],
+        ["Litware Refrigerator", "Home Appliances"],
+        ["Fabrikam Trendsetter Camera", "Cameras"]
+      ]
+    },
+    {
+      "id": "none-empty",
+      "query": "Show sales for the year 1850.",
+      "edgeCategory": "empty",
+      "expectedForm": "None",
+      "acceptableForms": ["None"],
+      "notes": "Empty result set -> nothing to show.",
+      "columns": [ { "name": "Channel", "type": "text" }, { "name": "Sales", "type": "number" } ],
+      "rows": []
+    },
+    {
+      "id": "all-zeros",
+      "query": "Show returns by channel (all zero this period).",
+      "edgeCategory": "all-zeros",
+      "expectedForm": "Bar",
+      "acceptableForms": ["Bar", "Table", "None"],
+      "notes": "Degenerate all-zero measure — observe whether it still renders validly.",
+      "columns": [ { "name": "Channel", "type": "text" }, { "name": "Returns", "type": "number" } ],
+      "rows": [ ["Store", 0.0], ["Online", 0.0], ["Reseller", 0.0], ["Catalog", 0.0] ]
+    },
+    {
+      "id": "negatives",
+      "query": "Show profit by region in 2008.",
+      "edgeCategory": "negatives",
+      "expectedForm": "Bar",
+      "acceptableForms": ["Bar", "HorizontalBar"],
+      "notes": "Negative values present — must NOT pick pie/donut.",
+      "columns": [ { "name": "Region", "type": "text" }, { "name": "Profit", "type": "number" } ],
+      "rows": [
+        ["North America", 210000000.0],
+        ["Europe", 90000000.0],
+        ["Asia", -35000000.0],
+        ["South America", -12000000.0]
+      ]
+    },
+    {
+      "id": "nulls",
+      "query": "Show sales by channel (some channels have no data).",
+      "edgeCategory": "nulls",
+      "expectedForm": "Bar",
+      "acceptableForms": ["Bar", "HorizontalBar", "Table"],
+      "notes": "Null measure cells — must not crash; nulls treated as missing.",
+      "columns": [ { "name": "Channel", "type": "text" }, { "name": "Sales", "type": "number" } ],
+      "rows": [
+        ["Store", 2228460305.60],
+        ["Online", null],
+        ["Reseller", 600175898.67],
+        ["Catalog", null],
+        ["Kiosk", 41000000.0]
+      ]
+    },
+    {
+      "id": "huge-cardinality",
+      "query": "Show units sold for every product.",
+      "edgeCategory": "high-cardinality",
+      "expectedForm": "Table",
+      "acceptableForms": ["Table"],
+      "notes": "Many categories (> 15) -> table.",
+      "columns": [ { "name": "Product", "type": "text" }, { "name": "Units", "type": "number" } ],
+      "rows": [
+        ["P01", 6650], ["P02", 6420], ["P03", 6180], ["P04", 5990], ["P05", 5810],
+        ["P06", 5640], ["P07", 5470], ["P08", 5290], ["P09", 5110], ["P10", 4980],
+        ["P11", 4820], ["P12", 4660], ["P13", 4510], ["P14", 4350], ["P15", 4200],
+        ["P16", 4050], ["P17", 3910], ["P18", 3770], ["P19", 3640], ["P20", 3500],
+        ["P21", 3370], ["P22", 3240], ["P23", 3110], ["P24", 2990], ["P25", 2860]
+      ]
+    },
+    {
+      "id": "id-year-line",
+      "query": "Show annual sales from 2007 to 2009.",
+      "edgeCategory": "id-numeric",
+      "expectedForm": "Line",
+      "acceptableForms": ["Line", "Bar"],
+      "notes": "A numeric 'Year' column reads as temporal by name -> line, not scatter.",
+      "columns": [ { "name": "Year", "type": "number" }, { "name": "Sales", "type": "number" } ],
+      "rows": [ [2007, 3620000000.0], [2008, 4111233534.69], [2009, 4380000000.0] ]
+    },
+    {
+      "id": "ambiguous-intent",
+      "query": "Show me the data.",
+      "edgeCategory": "ambiguous",
+      "expectedForm": "Bar",
+      "acceptableForms": ["Bar", "HorizontalBar", "Table"],
+      "notes": "Vague intent — Studio is shape-driven; Classic may diverge.",
+      "columns": [ { "name": "Channel", "type": "text" }, { "name": "Sales", "type": "number" } ],
+      "rows": [
+        ["Store", 2228460305.60],
+        ["Online", 937069110.93],
+        ["Reseller", 600175898.67],
+        ["Catalog", 345528219.49]
+      ]
+    },
+    {
+      "id": "single-text",
+      "query": "What is the name of the top-selling store?",
+      "edgeCategory": "single-text",
+      "expectedForm": "Table",
+      "acceptableForms": ["Table", "None", "Stat"],
+      "notes": "1 row, single text column, 0 numeric.",
+      "columns": [ { "name": "StoreName", "type": "text" } ],
+      "rows": [ ["Contoso Seattle No.1 Store"] ]
+    }
+  ]
+}

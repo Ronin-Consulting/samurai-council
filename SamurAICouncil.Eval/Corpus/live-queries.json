@@ -1,0 +1,62 @@
+{
+  "cases": [
+    {
+      "id": "live-total-revenue",
+      "query": "What was total revenue in 2008?",
+      "edgeCategory": "single-kpi",
+      "expectedForm": "Stat",
+      "acceptableForms": ["Stat"],
+      "notes": "Single aggregate -> KPI."
+    },
+    {
+      "id": "live-sales-by-channel",
+      "query": "Show total sales by channel in 2008.",
+      "edgeCategory": "category-magnitude",
+      "expectedForm": "Bar",
+      "acceptableForms": ["Bar", "HorizontalBar"]
+    },
+    {
+      "id": "live-monthly-trend",
+      "query": "Show the monthly sales trend for 2008.",
+      "edgeCategory": "temporal-single",
+      "expectedForm": "Line",
+      "acceptableForms": ["Line", "Area"]
+    },
+    {
+      "id": "live-top-products",
+      "query": "Show the top 10 products by revenue in 2008.",
+      "edgeCategory": "long-labels",
+      "expectedForm": "HorizontalBar",
+      "acceptableForms": ["HorizontalBar", "Bar", "Table"]
+    },
+    {
+      "id": "live-channel-share",
+      "query": "What percentage of sales came from each channel in 2008?",
+      "edgeCategory": "composition",
+      "expectedForm": "Bar",
+      "acceptableForms": ["Bar", "StackedBar", "Pie", "Donut", "Table"],
+      "notes": "Composition intent. Classic may pick pie/donut; Studio never emits pie (bar/stacked) — a key divergence to observe."
+    },
+    {
+      "id": "live-channel-by-year",
+      "query": "Show sales by channel for 2007, 2008 and 2009.",
+      "edgeCategory": "two-dim-pivot",
+      "expectedForm": "GroupedBar",
+      "acceptableForms": ["GroupedBar", "StackedBar", "Line", "Table"]
+    },
+    {
+      "id": "live-list-categories",
+      "query": "List the product categories.",
+      "edgeCategory": "no-measure",
+      "expectedForm": "Table",
+      "acceptableForms": ["Table"]
+    },
+    {
+      "id": "live-sales-by-country",
+      "query": "Show sales by country in 2008.",
+      "edgeCategory": "category-magnitude",
+      "expectedForm": "Bar",
+      "acceptableForms": ["Bar", "HorizontalBar", "Table"]
+    }
+  ]
+}

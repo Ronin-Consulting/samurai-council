@@ -1,0 +1,170 @@
+{
+  "cases": [
+    {
+      "id": "stat-single",
+      "query": "What was total revenue in 2008?",
+      "edgeCategory": "single-kpi",
+      "expectedForm": "Stat",
+      "acceptableForms": ["Stat"],
+      "notes": "1 row, 1 numeric, 0 dims -> KPI tile.",
+      "columns": [ { "name": "TotalRevenue", "type": "number" } ],
+      "rows": [ [4111233534.69] ]
+    },
+    {
+      "id": "stat-multi",
+      "query": "Give me the headline sales figures for 2008.",
+      "edgeCategory": "multi-kpi",
+      "expectedForm": "Stat",
+      "acceptableForms": ["Stat"],
+      "notes": "1 row, 3 numeric, 0 dims -> multiple KPI tiles.",
+      "columns": [
+        { "name": "TotalRevenue", "type": "number" },
+        { "name": "Orders", "type": "number" },
+        { "name": "AvgOrderValue", "type": "number" }
+      ],
+      "rows": [ [4111233534.69, 1305174, 3150.32] ]
+    },
+    {
+      "id": "bar-basic",
+      "query": "Show total sales by channel in 2008.",
+      "edgeCategory": "category-magnitude",
+      "expectedForm": "Bar",
+      "acceptableForms": ["Bar", "HorizontalBar"],
+      "notes": "1 short-label dim + 1 measure -> vertical bar.",
+      "columns": [ { "name": "Channel", "type": "text" }, { "name": "Sales", "type": "number" } ],
+      "rows": [
+        ["Store", 2228460305.60],
+        ["Online", 937069110.93],
+        ["Reseller", 600175898.67],
+        ["Catalog", 345528219.49]
+      ]
+    },
+    {
+      "id": "hbar-long-labels",
+      "query": "Top products by revenue in 2008.",
+      "edgeCategory": "long-labels",
+      "expectedForm": "HorizontalBar",
+      "acceptableForms": ["HorizontalBar", "Bar"],
+      "notes": "1 dim with long labels (avg > 12 chars) + 1 measure -> horizontal bar.",
+      "columns": [ { "name": "ProductName", "type": "text" }, { "name": "Revenue", "type": "number" } ],
+      "rows": [
+        ["Litware Refrigerator L Silver M08", 19643042.0],
+        ["Adventure Works 26 inch LCD TV M02", 15220110.0],
+        ["Contoso Washer Dryer M13", 12880540.0],
+        ["Fabrikam Trendsetter Camera X100", 9410220.0],
+        ["Proseware Projector Duo 1080p M04", 8120990.0]
+      ]
+    },
+    {
+      "id": "line-temporal",
+      "query": "Show the monthly sales trend for 2008.",
+      "edgeCategory": "temporal-single",
+      "expectedForm": "Line",
+      "acceptableForms": ["Line", "Area"],
+      "notes": "1 temporal dim + 1 measure -> line.",
+      "columns": [ { "name": "Month", "type": "date" }, { "name": "Sales", "type": "number" } ],
+      "rows": [
+        ["2008-01-01", 305200000.0],
+        ["2008-02-01", 312800000.0],
+        ["2008-03-01", 348100000.0],
+        ["2008-04-01", 366500000.0],
+        ["2008-05-01", 381200000.0],
+        ["2008-06-01", 399400000.0]
+      ]
+    },
+    {
+      "id": "groupedbar-2measures",
+      "query": "Compare 2007 and 2008 sales by region.",
+      "edgeCategory": "multi-series",
+      "expectedForm": "GroupedBar",
+      "acceptableForms": ["GroupedBar", "Bar"],
+      "notes": "1 dim + 2 measures (non-temporal) -> grouped bar.",
+      "columns": [
+        { "name": "Region", "type": "text" },
+        { "name": "Sales2007", "type": "number" },
+        { "name": "Sales2008", "type": "number" }
+      ],
+      "rows": [
+        ["North America", 1820000000.0, 1990000000.0],
+        ["Europe", 1120000000.0, 1240000000.0],
+        ["Asia", 640000000.0, 881000000.0]
+      ]
+    },
+    {
+      "id": "multiline-temporal",
+      "query": "Show monthly online vs store sales in 2008.",
+      "edgeCategory": "temporal-multi",
+      "expectedForm": "Line",
+      "acceptableForms": ["Line"],
+      "notes": "1 temporal dim + 2 measures -> multi-series line.",
+      "columns": [
+        { "name": "Month", "type": "date" },
+        { "name": "Online", "type": "number" },
+        { "name": "Store", "type": "number" }
+      ],
+      "rows": [
+        ["2008-01-01", 72000000.0, 233000000.0],
+        ["2008-02-01", 75000000.0, 238000000.0],
+        ["2008-03-01", 81000000.0, 267000000.0],
+        ["2008-04-01", 86000000.0, 280000000.0],
+        ["2008-05-01", 90000000.0, 291000000.0],
+        ["2008-06-01", 95000000.0, 304000000.0]
+      ]
+    },
+    {
+      "id": "pivot-grouped",
+      "query": "Show sales by channel and year.",
+      "edgeCategory": "two-dim-pivot",
+      "expectedForm": "GroupedBar",
+      "acceptableForms": ["GroupedBar", "StackedBar", "Table"],
+      "notes": "2 dims + 1 measure -> pivot second dim into series (grouped, no composition intent).",
+      "columns": [
+        { "name": "Channel", "type": "text" },
+        { "name": "Year", "type": "text" },
+        { "name": "Sales", "type": "number" }
+      ],
+      "rows": [
+        ["Store", "2007", 2010000000.0],
+        ["Store", "2008", 2228460305.60],
+        ["Online", "2007", 810000000.0],
+        ["Online", "2008", 937069110.93]
+      ]
+    },
+    {
+      "id": "pivot-stacked-composition",
+      "query": "Show the composition of revenue by segment across quarters (share of total).",
+      "edgeCategory": "two-dim-composition",
+      "expectedForm": "StackedBar",
+      "acceptableForms": ["StackedBar", "GroupedBar"],
+      "notes": "2 dims + 1 measure + composition/share intent -> stacked bar.",
+      "columns": [
+        { "name": "Segment", "type": "text" },
+        { "name": "Quarter", "type": "text" },
+        { "name": "Revenue", "type": "number" }
+      ],
+      "rows": [
+        ["Consumer", "Q1", 520000000.0],
+        ["Consumer", "Q2", 545000000.0],
+        ["Enterprise", "Q1", 410000000.0],
+        ["Enterprise", "Q2", 438000000.0]
+      ]
+    },
+    {
+      "id": "scatter-2numeric",
+      "query": "Is there a relationship between unit price and quantity sold?",
+      "edgeCategory": "correlation",
+      "expectedForm": "Scatter",
+      "acceptableForms": ["Scatter"],
+      "notes": "2 measures, 0 dims -> scatter.",
+      "columns": [ { "name": "UnitPrice", "type": "number" }, { "name": "Quantity", "type": "number" } ],
+      "rows": [
+        [12.5, 6650],
+        [24.0, 3120],
+        [49.9, 1870],
+        [99.0, 940],
+        [199.0, 410],
+        [499.0, 120]
+      ]
+    }
+  ]
+}
