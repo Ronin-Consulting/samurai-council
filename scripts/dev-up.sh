@@ -11,10 +11,15 @@
 # you have on disk — committed or not — is what you see in the browser.
 #
 # Usage:
-#   ./scripts/dev-up.sh            build + (re)start everything, wait until it answers
-#   ./scripts/dev-up.sh logs       follow the web container logs
-#   ./scripts/dev-up.sh down       stop and remove the containers
-#   ./scripts/dev-up.sh rebuild    force a clean rebuild (no image cache)
+#   ./scripts/dev-up.sh                     build + (re)start everything, wait until it answers
+#   ./scripts/dev-up.sh logs                follow the web container logs
+#   ./scripts/dev-up.sh down                stop and remove the containers
+#   ./scripts/dev-up.sh rebuild             force a clean rebuild (no image cache)
+#
+#   ./scripts/dev-up.sh up openrouter       same, but using the .env.openrouter profile
+#                                           (open-source models via OpenRouter — see
+#                                           .env.openrouter.example). Any subcommand accepts
+#                                           a profile as the 2nd arg: logs/down/rebuild openrouter.
 #
 # On this host Docker runs inside WSL2. Run this from a WSL shell, or use the
 # PowerShell wrapper (scripts/dev-up.ps1) from Windows.
@@ -27,20 +32,29 @@ cd "$ROOT"
 
 URL="http://localhost:5080"
 CMD="${1:-up}"
+PROFILE="${2:-}"
+
+ENV_FILE=".env"
+COMPOSE_ARGS=(docker compose)
+if [ -n "$PROFILE" ]; then
+  ENV_FILE=".env.$PROFILE"
+  COMPOSE_ARGS=(docker compose --env-file "$ENV_FILE")
+fi
 
 case "$CMD" in
   down)
-    echo "▶ Stopping SamurAI Council…"
-    docker compose down
+    echo "▶ Stopping SamurAI Council… [profile: ${PROFILE:-default}]"
+    "${COMPOSE_ARGS[@]}" down
     exit 0
     ;;
   logs)
-    docker compose logs -f web
+    "${COMPOSE_ARGS[@]}" logs -f web
     exit 0
     ;;
   up|rebuild) ;;
   *)
-    echo "Usage: $0 [up|logs|down|rebuild]" >&2
+    echo "Usage: $0 [up|logs|down|rebuild] [profile]" >&2
+    echo "  e.g.  $0 up openrouter" >&2
     exit 2
     ;;
 esac
@@ -52,28 +66,31 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
-if [ ! -f .env ]; then
-  echo "ERROR: .env not found in $ROOT." >&2
-  echo "       Create it:  cp .env.example .env  and set OPENAI_API_KEY (the FortyAU gateway token)." >&2
+if [ ! -f "$ENV_FILE" ]; then
+  echo "ERROR: $ENV_FILE not found in $ROOT." >&2
+  if [ -n "$PROFILE" ]; then
+    echo "       Create it:  cp .env.$PROFILE.example .env.$PROFILE  and set OPENAI_API_KEY." >&2
+  else
+    echo "       Create it:  cp .env.example .env  and set OPENAI_API_KEY (the FortyAU gateway token)." >&2
+  fi
   exit 1
 fi
 
-# OPENAI_API_KEY holds the gateway token and is required by compose.
-key="$(grep -E '^OPENAI_API_KEY=' .env | head -1 | cut -d= -f2- || true)"
-if [ -z "${key//[[:space:]]/}" ] || printf '%s' "$key" | grep -q 'your-openai-api-key-here'; then
-  echo "ERROR: OPENAI_API_KEY is empty or still the placeholder in .env." >&2
-  echo "       Set it to the FortyAU gateway token." >&2
+# OPENAI_API_KEY holds the gateway/provider token and is required by compose.
+key="$(grep -E '^OPENAI_API_KEY=' "$ENV_FILE" | head -1 | cut -d= -f2- || true)"
+if [ -z "${key//[[:space:]]/}" ] || printf '%s' "$key" | grep -qi 'your-'; then
+  echo "ERROR: OPENAI_API_KEY is empty or still the placeholder in $ENV_FILE." >&2
   exit 1
 fi
 
 # ---- build + start ----
-echo "▶ Building images from the current source and starting containers…"
+echo "▶ Building images from the current source and starting containers… [profile: ${PROFILE:-default}]"
 echo "  (The Angular SPA is built inside the image, so uncommitted UI + backend changes are included.)"
 if [ "$CMD" = "rebuild" ]; then
-  docker compose build --no-cache
-  docker compose up -d
+  "${COMPOSE_ARGS[@]}" build --no-cache
+  "${COMPOSE_ARGS[@]}" up -d
 else
-  docker compose up -d --build
+  "${COMPOSE_ARGS[@]}" up -d --build
 fi
 
 # ---- wait until the app answers ----
@@ -88,17 +105,20 @@ echo
 
 if [ "$ok" -ne 1 ]; then
   echo "WARN: the app did not respond within ~3 minutes. Recent web logs:" >&2
-  docker compose logs --tail 50 web >&2
+  "${COMPOSE_ARGS[@]}" logs --tail 50 web >&2
   exit 1
 fi
 
+PROFILE_SUFFIX=""
+[ -n "$PROFILE" ] && PROFILE_SUFFIX=" $PROFILE"
+
 cat <<EOF
 
-✅ SamurAI Council is running.
+✅ SamurAI Council is running. [profile: ${PROFILE:-default}]
 
    App:          $URL
-   Follow logs:  ./scripts/dev-up.sh logs      (or: docker compose logs -f web)
-   Stop:         ./scripts/dev-up.sh down
+   Follow logs:  ./scripts/dev-up.sh logs${PROFILE_SUFFIX}      (or: docker compose $([ -n "$PROFILE" ] && echo "--env-file $ENV_FILE ")logs -f web)
+   Stop:         ./scripts/dev-up.sh down${PROFILE_SUFFIX}
 
    Re-run this script any time to rebuild with your latest changes.
 EOF

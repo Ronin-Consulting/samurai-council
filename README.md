@@ -1,19 +1,17 @@
 <div align="center">
-  <img src="SamurAICouncil.Web/wwwroot/smaurai_council.png" alt="SamurAI Council" width="600" />
   <h1>SamurAI Council</h1>
   <p><strong>Multi-Model AI Deliberation Platform</strong></p>
   <p>
     <img src="https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet" alt=".NET 10" />
-    <img src="https://img.shields.io/badge/Blazor-Server-512BD4?logo=blazor" alt="Blazor Server" />
+    <img src="https://img.shields.io/badge/Angular-22-DD0031?logo=angular&logoColor=white" alt="Angular 22" />
     <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL" />
     <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white" alt="Docker" />
-    <img src="https://img.shields.io/badge/Tests-360-green" alt="360 Tests" />
   </p>
 </div>
 
-SamurAI Council is a .NET 10 Blazor Server application that orchestrates a 3-stage deliberation process across multiple AI models (OpenAI, Anthropic, Google) to produce higher-quality, peer-validated responses. Models independently respond to queries, anonymously rank each other's work, and a chairman model synthesizes the best elements into a final answer.
+SamurAI Council is an Angular SPA + .NET 10 Web API that orchestrates a 3-stage deliberation process across multiple AI models (OpenAI, Anthropic, Google) to produce higher-quality, peer-validated responses. Models independently respond to queries, anonymously rank each other's work, and a chairman model synthesizes the best elements into a final answer.
 
-Originally converted from the [LlmCouncil](#reference-implementation) Python/React reference implementation.
+Originally a Blazor Server application (since migrated to Angular + Web API), and before that converted from the [LlmCouncil](#reference-implementation) Python/React reference implementation.
 
 ---
 
@@ -27,7 +25,7 @@ Originally converted from the [LlmCouncil](#reference-implementation) Python/Rea
 - [Docker Deployment](#docker-deployment)
 - [Configuration Reference](#configuration-reference)
 - [Core Services](#core-services)
-- [Blazor Components](#blazor-components)
+- [Angular Client](#angular-client)
 - [LLM Integration](#llm-integration)
 - [Tool Calling & Text-to-SQL](#tool-calling--text-to-sql)
 - [Chart Visualization](#chart-visualization)
@@ -83,6 +81,8 @@ User Query
        (with optional chart visualization)
 ```
 
+Stage results stream to the browser over **Server-Sent Events** (`loading → stage1 → stage2 → stage3 → title → done`).
+
 ### Stage 1: Independent Response Generation
 
 Multiple AI models from different providers independently analyze the same query. Each brings unique strengths from different training data and architectures. If the query involves company data (detected via keyword matching), models are given access to the `query_company_data` tool for Text-to-SQL queries against the ContosoRetailDW database. All models are queried in parallel using `Task.WhenAll`.
@@ -93,7 +93,7 @@ Responses are anonymized using letter labels (Response A, B, C) via `Anonymizati
 
 ### Stage 3: Chairman Synthesis
 
-A designated chairman model (configurable, defaults to a more capable model) receives all original responses, peer evaluations, and aggregate rankings. It synthesizes the best final answer. If any Stage 1 response generated chart data via tool use, the chart from the top-ranked response is propagated to the Stage 3 result for display.
+A designated chairman model (configurable, defaults to a more capable model) receives all original responses, peer evaluations, and aggregate rankings. It synthesizes the best final answer as a concise executive brief. If any Stage 1 response generated chart data via tool use, the charts from the top-ranked response are propagated to the Stage 3 result for display.
 
 ---
 
@@ -101,23 +101,25 @@ A designated chairman model (configurable, defaults to a more capable model) rec
 
 ```
 +---------------------------------------------------------+
-|                   SamurAICouncil.Web                    |
-|  Blazor Server (.NET 10, Interactive Server Mode)       |
+|              Angular 22 SPA  (clients/angular)          |
+|  Standalone components + signals, Tailwind, ngx-echarts |
 |                                                         |
-|  Components/Pages/       Components/Shared/             |
-|  - Chat.razor            - AssistantMessagePanel        |
-|  - Error.razor           - Stage1Panel, Stage2Panel,    |
-|  - NotFound.razor          Stage3Panel                  |
-|                          - ChartDisplay, ToolUsagePanel |
-|  Components/Layout/      - MarkdownRenderer, Logo       |
-|  - MainLayout            - TabNavigation, LoadingSpinner|
-|  - Sidebar               - AppErrorBoundary             |
-|  - ReconnectModal                                       |
-|                                                         |
-|  Services/                                              |
-|  - ConversationService   - ConversationState            |
-|  - PdfExportService      - ThemeService                 |
-|  - MarkdownToPdfRenderer - MarkdownToExcelRenderer      |
+|  components/            services/                       |
+|  - chat-page            - api.service                   |
+|  - sidebar              - conversation.store (signals)  |
+|  - assistant-message    - council-stream.service (SSE)  |
+|  - visual-display       - theme.service                 |
+|  - chart-display        - view-mode.service             |
+|  - stat-tile,data-table                                 |
+|  - studio/* (V2 cards)  - gallery-page                  |
++---------------------------------------------------------+
+                    |  HTTP (CRUD) + SSE (council stream)
+                    v
++---------------------------------------------------------+
+|                   SamurAICouncil.Api                    |
+|  ASP.NET Core Web API (.NET 10)                         |
+|  - ConversationsController (CRUD + SSE + export)        |
+|  - Serves the built Angular app from wwwroot (SPA)      |
 +---------------------------------------------------------+
           |                          |
           v                          v
@@ -126,28 +128,30 @@ A designated chairman model (configurable, defaults to a more capable model) rec
 | Domain + Business     |  | Data Access Layer       |
 | Logic                 |  |                         |
 | - CouncilService      |  | - ConversationRepo      |
-| - SemanticKernelLlm   |  | - MessageRepository     |
+| - CouncilConversation |  | - MessageRepository     |
 |   Service             |  | - ResilientConversation |
+| - SemanticKernelLlm   |  |   Repository            |
+|   Service             |  | - ResilientMessage      |
 | - ResilientLlmService |  |   Repository            |
-| - CompanyDataService  |  | - ResilientMessage      |
-| - CompanyDataTool     |  |   Repository            |
-| - CompanyDataPlugin   |  | - DatabaseResilience    |
-| - ChartDataTransformer|  |   Policies (Polly)      |
-| - RankingParser       |  | - FluentMigrator        |
-| - AggregateRanking    |  |   Migrations            |
-|   Calculator          |  +-------------------------+
-| - AnonymizationHelper |           |
-+-----------------------+           v
-          |               +-------------------+
-          v               | PostgreSQL 16     |
-+-------------------+     | - conversations   |
-| LLM Providers     |     | - messages (JSONB)|
-| - OpenAI (SK)     |     +-------------------+
-| - Anthropic (SDK) |
+| - CompanyDataService  |  | - DatabaseResilience    |
+| - CompanyDataTool     |  |   Policies (Polly)      |
+| - StudioClassifier    |  | - FluentMigrator        |
+| - ChartDataTransformer|  |   Migrations            |
+| - RankingParser       |  +-------------------------+
+| - AggregateRanking    |           |
+|   Calculator          |           v
+| - AnonymizationHelper |  +-------------------+
+| - Export/ (PDF,Excel) |  | PostgreSQL 16     |
++-----------------------+  | - conversations   |
+          |                | - messages (JSONB)|
+          v                +-------------------+
++-------------------+
+| LLM Providers     |     +-------------------+
+| - OpenAI (SK)     |     | SQL Server 2022   |
+| - Anthropic (SDK) |     | - ContosoRetailDW |
 | - Google (SK)     |     +-------------------+
-+-------------------+     | SQL Server 2022   |
-                          | - ContosoRetailDW |
-                          +-------------------+
++-------------------+
+(Routed through the FortyAU OpenAI-compatible gateway)
 ```
 
 ---
@@ -162,6 +166,8 @@ SamurAICouncil/
 ├── README.md                             # This file
 │
 ├── scripts/
+│   ├── dev-up.sh                         # One-command Docker launcher (build + start + wait)
+│   ├── dev-up.ps1                        # Windows/PowerShell wrapper (delegates to WSL)
 │   ├── init-contoso.sh                   # Initialize ContosoRetailDW database
 │   └── sql/
 │       └── init-contoso-db.sql           # Database restore and user setup
@@ -169,60 +175,44 @@ SamurAICouncil/
 ├── data/                                 # Data files (gitignored)
 │   └── contoso/                          # ContosoRetailDW.bak goes here
 │
-├── SamurAICouncil.Web/                   # Blazor Server app (UI layer)
-│   ├── Components/
-│   │   ├── App.razor                     # Root application component
-│   │   ├── Routes.razor                  # Routing configuration
-│   │   ├── _Imports.razor                # Global using directives
-│   │   ├── Layout/
-│   │   │   ├── MainLayout.razor          # Application shell with sidebar
-│   │   │   ├── MainLayout.razor.css      # Scoped layout styles
-│   │   │   ├── Sidebar.razor             # Conversation list & navigation
-│   │   │   ├── Sidebar.razor.css         # Scoped sidebar styles
-│   │   │   ├── ReconnectModal.razor      # SignalR reconnection UI
-│   │   │   └── ReconnectModal.razor.css  # Scoped reconnect styles
-│   │   ├── Pages/
-│   │   │   ├── Chat.razor                # Main chat interface (/, /chat, /chat/{id})
-│   │   │   ├── Error.razor               # Error page
-│   │   │   └── NotFound.razor            # 404 page
-│   │   └── Shared/
-│   │       ├── AssistantMessagePanel.razor # Orchestrates stage panel display
-│   │       ├── Stage1Panel.razor          # Tabbed view of model responses
-│   │       ├── Stage2Panel.razor          # Rankings with de-anonymization
-│   │       ├── Stage3Panel.razor          # Chairman's synthesized answer
-│   │       ├── ChartDisplay.razor         # MudBlazor chart rendering
-│   │       ├── ToolUsagePanel.razor       # SQL query & result display
-│   │       ├── MarkdownRenderer.razor     # Markdig-based markdown rendering
-│   │       ├── TabNavigation.razor        # Reusable tab control
-│   │       ├── LoadingSpinner.razor       # Animated loading indicator
-│   │       ├── Logo.razor                 # Application logo component
-│   │       └── AppErrorBoundary.razor     # Global error boundary
-│   ├── Services/
-│   │   ├── ConversationService.cs         # CRUD for conversations (DB persistence)
-│   │   ├── ConversationState.cs           # Scoped UI state management
-│   │   ├── ThemeService.cs                # Dark/light theme management
-│   │   ├── IExportService.cs              # Export service interface
-│   │   ├── PdfExportService.cs            # PDF + Excel export implementation
-│   │   ├── MarkdownToPdfRenderer.cs       # Markdown-to-QuestPDF conversion
-│   │   └── MarkdownToExcelRenderer.cs     # Markdown table-to-Excel conversion
-│   ├── wwwroot/
-│   │   ├── app.css                        # Global styles
-│   │   ├── js/
-│   │   │   ├── fileDownload.js            # JS interop for file downloads
-│   │   │   └── markdown-enhance.js        # Client-side markdown enhancements
-│   │   ├── favicon.svg                    # Browser favicon
-│   │   ├── helmet.svg                     # Helmet icon asset
-│   │   ├── logo.png                       # Full logo
-│   │   ├── logo-white-red-768x249.png     # Logo variant
-│   │   └── smaurai_council.png            # Welcome screen image
-│   ├── Program.cs                         # Application entry point & DI configuration
-│   ├── Dockerfile                         # Multi-stage Docker build
-│   └── appsettings.json                   # Application configuration
+├── clients/angular/                      # Angular 22 SPA (UI layer)
+│   ├── angular.json, package.json, proxy.conf.json, tailwind (postcss)
+│   └── src/
+│       ├── index.html, main.ts, styles.css   # bootstrap + Tailwind/design system
+│       └── app/
+│           ├── app.ts / app.html             # Shell (topbar, sidebar host, outlet)
+│           ├── app.config.ts / app.routes.ts # Providers + routes
+│           ├── models.ts, util.ts            # DTOs + dataviz palette / ECharts builders
+│           ├── components/
+│           │   ├── chat-page.ts              # Main chat interface
+│           │   ├── sidebar.ts                # Conversation list & navigation
+│           │   ├── assistant-message.ts      # Final / Responses / Rankings tabs
+│           │   ├── visual-display.ts         # Classic (V1) dispatcher
+│           │   ├── chart-display.ts          # ngx-echarts renderer
+│           │   ├── stat-tile.ts, data-table.ts
+│           │   ├── gallery-page.ts           # /gallery (both modes, sample data)
+│           │   └── studio/                   # Studio (V2) pre-made cards
+│           │       ├── studio-display.ts     # dispatcher
+│           │       ├── studio-card.ts        # shared chrome
+│           │       └── studio-chart.ts, studio-kpi.ts, studio-table.ts
+│           └── services/
+│               ├── api.service.ts            # HTTP client for the API
+│               ├── conversation.store.ts     # ConversationStore (signals)
+│               ├── council-stream.service.ts # SSE reader
+│               ├── theme.service.ts          # Dark/light theme
+│               └── view-mode.service.ts      # Classic ↔ Studio toggle
 │
-├── SamurAICouncil.Core/                   # Domain models, interfaces, business logic
+├── SamurAICouncil.Api/                   # ASP.NET Core Web API (hosts SPA + SSE)
+│   ├── Controllers/
+│   │   └── ConversationsController.cs    # CRUD + SSE council stream + export
+│   ├── Program.cs                        # DI, static-file/SPA fallback, migrations
+│   ├── appsettings.json                  # Application configuration
+│   └── Dockerfile                        # Multi-stage (Angular build → publish → wwwroot)
+│
+├── SamurAICouncil.Core/                  # Domain models, interfaces, business logic
 │   ├── Configuration/
 │   │   ├── CouncilConfiguration.cs        # Council models + chairman config
-│   │   ├── LlmApiKeysConfiguration.cs     # API key management + validation
+│   │   ├── LlmApiKeysConfiguration.cs     # API keys + custom OpenAI endpoint
 │   │   ├── LlmProviderConfiguration.cs    # Provider-level config
 │   │   └── CompanyDataConfiguration.cs    # Text-to-SQL config
 │   ├── Interfaces/
@@ -235,23 +225,27 @@ SamurAICouncil/
 │   │   └── IMessageRepository.cs          # Message persistence contract
 │   ├── Models/
 │   │   ├── Conversation.cs                # Conversation + ConversationMetadata
+│   │   ├── ConversationSummary.cs         # List-view summary
 │   │   ├── Message.cs                     # Message (polymorphic: User/Assistant)
 │   │   ├── CouncilResult.cs               # Full result + metadata + rankings
 │   │   ├── StageResponses.cs              # Stage1Response, Stage2Ranking, Stage3Response
-│   │   └── ChartModels.cs                 # ChartRecommendation, ChartSeriesData, ChartType
+│   │   └── ChartModels.cs                 # ChartRecommendation, ChartSeriesData, ChartType (12 forms)
 │   ├── Resources/
 │   │   └── ContosoRetailDW_Schema.md      # Embedded DB schema for SQL generation
 │   └── Services/
 │       ├── CouncilService.cs              # 3-stage deliberation orchestrator
+│       ├── CouncilConversationService.cs  # Conversation turn: SSE stream + persistence + chart propagation
 │       ├── SemanticKernelLlmService.cs    # Multi-provider LLM service (SK + Anthropic SDK)
 │       ├── ResilientLlmService.cs         # Polly-wrapped LLM decorator
 │       ├── CompanyDataService.cs          # Text-to-SQL query engine
 │       ├── CompanyDataTool.cs             # ILlmTool implementation for SQL queries
 │       ├── CompanyDataPlugin.cs           # Semantic Kernel plugin wrapper
+│       ├── StudioClassifier.cs            # Deterministic (V2) chart-form choice
 │       ├── ChartDataTransformer.cs        # LLM chart recommendation parser
 │       ├── RankingParser.cs               # Extracts rankings from model text
 │       ├── AggregateRankingCalculator.cs  # Computes consensus rankings
-│       └── AnonymizationHelper.cs         # Response anonymization for peer review
+│       ├── AnonymizationHelper.cs         # Response anonymization for peer review
+│       └── Export/                        # PDF (QuestPDF) + Excel (ClosedXML) export
 │
 ├── SamurAICouncil.Data/                   # Data access layer
 │   ├── Repositories/
@@ -267,9 +261,9 @@ SamurAICouncil/
 │   │   └── MigrationRunner.cs             # FluentMigrator runner
 │   └── ServiceCollectionExtensions.cs     # DI registration helpers
 │
-├── SamurAICouncil.Core.Tests/             # Unit tests (232 tests)
-├── SamurAICouncil.Data.Tests/             # Integration tests with TestContainers (18 tests)
-├── SamurAICouncil.Web.Tests/              # bUnit + integration tests (110 tests)
+├── SamurAICouncil.Core.Tests/             # Unit tests (Core business logic)
+├── SamurAICouncil.Data.Tests/             # Integration tests with TestContainers
+├── SamurAICouncil.Api.Tests/              # API integration + StudioClassifier tests
 │
 └── LlmCouncil/                            # Python/React reference implementation
     ├── backend/                           # FastAPI backend
@@ -283,22 +277,22 @@ SamurAICouncil/
 | Layer | Technology | Version |
 |-------|------------|---------|
 | **Runtime** | .NET | 10.0 |
-| **UI Framework** | Blazor Server (Interactive Server Mode) | .NET 10 |
-| **UI Components** | MudBlazor | 8.15.0 |
+| **UI Framework** | Angular (standalone components, signals) | 22 |
+| **Styling** | Tailwind CSS | 4 |
+| **Charts** | ngx-echarts / Apache ECharts | 22 / 6 |
+| **Markdown (client)** | ngx-markdown + Prism, @tailwindcss/typography | 22 |
+| **API** | ASP.NET Core Web API (HTTP + SSE) | .NET 10 |
 | **LLM Orchestration** | Microsoft Semantic Kernel | 1.67.1 |
-| **LLM - OpenAI** | Semantic Kernel OpenAI Connector | 1.67.1 |
-| **LLM - Google** | Semantic Kernel Google Connector | 1.67.1-alpha |
-| **LLM - Anthropic** | Official Anthropic C# SDK | 10.4.0 |
+| **LLM - Anthropic** | Official Anthropic C# SDK | (SK + native SDK) |
 | **Database (App)** | PostgreSQL | 16 (Alpine) |
 | **Database (Analytics)** | SQL Server | 2022 |
-| **ORM** | Dapper | 2.1.66 |
-| **Migrations** | FluentMigrator | 7.1.0 |
-| **Resilience** | Polly | 8.6.5 |
-| **Markdown** | Markdig | 0.44.0 |
-| **PDF Export** | QuestPDF | 2025.7.4 |
-| **Excel Export** | ClosedXML | 0.105.0 |
-| **SQL Client** | Microsoft.Data.SqlClient | 6.1.3 |
-| **Testing** | MSTest, bUnit, Moq, TestContainers | Latest |
+| **ORM** | Dapper | 2.x |
+| **Migrations** | FluentMigrator | 7.x |
+| **Resilience** | Polly | 8.x |
+| **Markdown (server)** | Markdig | 0.x |
+| **PDF Export** | QuestPDF | 2025.x |
+| **Excel Export** | ClosedXML | 0.x |
+| **Testing** | MSTest, Moq, TestContainers (.NET); Vitest (Angular) | Latest |
 | **Containerization** | Docker, Docker Compose | Multi-stage build |
 
 ---
@@ -308,30 +302,29 @@ SamurAICouncil/
 ### Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- [Node.js 22](https://nodejs.org/) + Angular CLI 22 (for the client)
 - [Docker](https://docs.docker.com/get-docker/) (for database and deployment)
-- API keys for at least two LLM providers:
-  - **OpenAI** API key (`OPENAI_API_KEY`)
-  - **Anthropic** API key (`ANTHROPIC_API_KEY`)
-  - **Google AI** API key (`GOOGLE_API_KEY`) - optional
+- An LLM gateway token / API key (`OPENAI_API_KEY`); Anthropic/Google keys optional
+
+> On this host the Node/Angular and .NET tooling run inside **WSL2** (native Windows binaries crash with `0xC000001D`). Docker Engine also runs in WSL2.
 
 ### Quick Start (Docker)
 
 ```bash
-# 1. Clone the repository
+# 1. Clone and enter the repository
 git clone <repository-url>
 cd SamurAICouncil
 
-# 2. Set API keys
-export OPENAI_API_KEY="sk-..."
-export ANTHROPIC_API_KEY="sk-ant-..."
-export GOOGLE_API_KEY="..."  # Optional
+# 2. Configure secrets
+cp .env.example .env      # then set OPENAI_API_KEY (the gateway token)
 
-# 3. Build and start all services
-docker compose up --build -d
+# 3. Build and start everything (one command)
+./scripts/dev-up.sh       # or, from Windows PowerShell: .\scripts\dev-up.ps1
 
-# 4. Open in browser
-open http://localhost:5080
+# 4. Open http://localhost:5080
 ```
+
+`dev-up.sh` supports `up` (default), `logs`, `down`, and `rebuild`.
 
 ### Local Development
 
@@ -339,14 +332,14 @@ open http://localhost:5080
 # 1. Start database services
 docker compose up -d db sqlserver
 
-# 2. Build the solution
-dotnet build
+# 2. Run the API (backend)
+dotnet run --project SamurAICouncil.Api
 
-# 3. Run the web project (with hot reload)
-dotnet watch --project SamurAICouncil.Web
-
-# 4. Open http://localhost:5080
+# 3. Run the Angular client (frontend) — proxies /api to the API on :5131
+cd clients/angular && ng serve      # http://localhost:4200
 ```
+
+For fast UI iteration, `ng serve` (hot reload) beats a full Docker image rebuild.
 
 ### ContosoRetailDW Setup (Text-to-SQL Feature)
 
@@ -383,30 +376,34 @@ The `compose.yaml` defines three services:
 
 | Service | Image | Port | Purpose |
 |---------|-------|------|---------|
-| `web` | `samuraicouncil-web` (built from Dockerfile) | 5080:8080 | Blazor Server application |
+| `web` | `samuraicouncil-web` (built from Dockerfile) | 5080:8080 | Web API serving the Angular SPA |
 | `db` | `postgres:16-alpine` | 5432:5432 | Application data (conversations, messages) |
 | `sqlserver` | `mcr.microsoft.com/mssql/server:2022-latest` | 1433:1433 | ContosoRetailDW analytics database |
 
 ### Multi-Stage Dockerfile
 
+`SamurAICouncil.Api/Dockerfile` builds the frontend and backend into one image:
+
 ```
-Stage 1 (base)    - aspnet:10.0 runtime + Kerberos lib + curl for health checks
-Stage 2 (build)   - sdk:10.0, restore dependencies, build solution
-Stage 3 (publish) - dotnet publish with UseAppHost=false
-Stage 4 (final)   - Copy published output to runtime image
+Stage 1 (ngbuild) - node:22-alpine: npm ci + `ng build --configuration production`
+Stage 2 (build)   - sdk:10.0: restore + `dotnet publish` the API
+Stage 3 (final)   - aspnet:10.0 runtime + Kerberos lib + curl;
+                    copy published API, then copy the Angular build into ./wwwroot
 ```
+
+The API serves `wwwroot` as static files with SPA fallback, so the whole app runs single-origin on port 8080 (mapped to host 5080).
 
 ### Health Checks
 
-- **Web**: `curl -f http://localhost:8080/health` (30s interval)
+- **Web**: `curl -f http://localhost:8080/` (30s interval)
 - **PostgreSQL**: `pg_isready -U postgres` (5s interval)
 - **SQL Server**: `sqlcmd SELECT 1` (10s interval, 30s start period)
 
 ### Required Environment Variables
 
 ```bash
-export OPENAI_API_KEY="sk-..."          # Required
-export ANTHROPIC_API_KEY="sk-ant-..."   # Required
+export OPENAI_API_KEY="sk-..."          # Required (gateway token; all roles route through it)
+export ANTHROPIC_API_KEY="sk-ant-..."   # Optional
 export GOOGLE_API_KEY="..."             # Optional
 export MSSQL_SA_PASSWORD="..."          # Optional (default: YourStrong!Passw0rd)
 ```
@@ -424,12 +421,13 @@ docker compose down -v          # Stop and remove volumes
 
 ## Configuration Reference
 
-### appsettings.json
+### appsettings.json (code defaults)
 
 ```jsonc
 {
   "LlmApiKeys": {
-    "OpenAI": "",           // Or set via LlmApiKeys__OpenAI env var
+    "OpenAI": "",           // Or set via LlmApiKeys__OpenAI env var (gateway token)
+    "OpenAIEndpoint": "",   // Custom OpenAI-compatible base URL (the gateway)
     "Anthropic": "",        // Or set via LlmApiKeys__Anthropic env var
     "Google": ""            // Or set via LlmApiKeys__Google env var
   },
@@ -457,17 +455,47 @@ docker compose down -v          # Stop and remove volumes
 }
 ```
 
-### Docker Compose Default Models
+> These are the checked-in code defaults. In Docker, `compose.yaml` overrides them and routes **every role through the FortyAU OpenAI-compatible gateway** (`LlmApiKeys__OpenAIEndpoint=https://llm.fortyau.com/v1`): all roles use the `openai` provider pointed at that endpoint, with `OPENAI_API_KEY` as the gateway token.
 
-The `compose.yaml` overrides the default models with faster, cost-effective options:
+### Docker Compose Models (via the gateway)
 
 | Role | Provider | Model |
 |------|----------|-------|
-| Council Member 1 | OpenAI | `gpt-5-mini` |
-| Council Member 2 | Anthropic | `claude-haiku-4-5-20251001` |
-| Council Member 3 | Google | `gemini-2.5-flash` |
-| Chairman | Google | `gemini-2.5-pro` |
-| SQL Generation | Anthropic | `claude-sonnet-4-5-20250929` |
+| Council Member 1 | openai (gateway) | `gpt-4o` |
+| Council Member 2 | openai (gateway) | `gpt-4.1` |
+| Council Member 3 | openai (gateway) | `gemini-2.5-flash` |
+| Chairman | openai (gateway) | `claude-opus-4-1` |
+| Title Generation | openai (gateway) | `gpt-4o-mini` |
+| SQL Generation | openai (gateway) | `gpt-4o` |
+
+### Alternate profile: open-source models via OpenRouter
+
+Every role above uses the `openai` provider pointed at `LlmApiKeys.OpenAIEndpoint`, and that
+override works for *any* OpenAI-compatible server — not just the FortyAU gateway. `compose.yaml`'s
+LLM env lines all have `${VAR:-default}` fallbacks, so an alternate, opt-in `.env.openrouter`
+profile can point every role at [OpenRouter](https://openrouter.ai) with open-source models
+instead, with **no code changes** and no effect on the default profile:
+
+```bash
+cp .env.openrouter.example .env.openrouter   # then set OPENAI_API_KEY to your OpenRouter key
+docker compose --env-file .env.openrouter up -d --build
+# or: ./scripts/dev-up.sh up openrouter   /   .\scripts\dev-up.ps1 up openrouter
+```
+
+| Role | Model (via OpenRouter) |
+|------|-------------------------|
+| Council Member 1 | `z-ai/glm-5.2` |
+| Council Member 2 | `minimax/minimax-m2.7` |
+| Council Member 3 | `qwen/qwen3.7-max` |
+| Chairman | `deepseek/deepseek-v4-pro` |
+| Title Generation | `deepseek/deepseek-v4-flash` |
+| SQL Generation | `qwen/qwen3-coder-next` |
+
+Model choices favor agentic tool-calling reliability (council member 2) and schema-grounded
+precision (SQL generation); see CLAUDE.md for the retry/timeout mechanism.
+
+Revert to the default FortyAU profile any time with a plain `docker compose up -d --build`
+(no `--env-file`) — the two profiles are fully independent and instantly reversible.
 
 ### API Key Validation
 
@@ -488,13 +516,15 @@ The central orchestrator that implements `ICouncilService`. Manages the full 3-s
 | `RunFullCouncilAsync()` | Runs all 3 stages sequentially, returns `CouncilResult` |
 | `Stage1CollectResponsesAsync()` | Queries all council models in parallel (with optional tools) |
 | `Stage2CollectRankingsAsync()` | Anonymizes responses, collects peer rankings from all models |
-| `Stage3SynthesizeFinalAsync()` | Chairman synthesizes final answer from all data |
+| `Stage3SynthesizeFinalAsync()` | Chairman synthesizes final answer (concise executive brief) |
 | `GenerateConversationTitleAsync()` | Auto-generates 3-5 word conversation title |
 
 Key behaviors:
 - **Tool detection**: Keyword-based matching (sales, revenue, product, etc.) determines if `CompanyDataTool` should be offered to models
 - **Chart propagation**: Charts from the top-ranked Stage 1 response are propagated to Stage 3 for display
 - **Fallback**: If the chairman returns empty, falls back to the first Stage 1 response
+
+`CouncilConversationService` wraps this for the API: it runs a conversation turn, streams SSE events, persists messages, and propagates both the LLM `chart` and the deterministic `studio_chart` to Stage 3.
 
 ### SemanticKernelLlmService
 
@@ -504,7 +534,7 @@ Multi-provider LLM integration implementing `ILlmService`:
 
 | Provider | Implementation |
 |----------|---------------|
-| **OpenAI** | Semantic Kernel `IChatCompletionService` with `FunctionChoiceBehavior.Auto()` for tool calling |
+| **OpenAI** | Semantic Kernel `IChatCompletionService` with `FunctionChoiceBehavior.Auto()` for tool calling (supports a custom OpenAI-compatible endpoint) |
 | **Google** | Semantic Kernel Google Connector with `GeminiPromptExecutionSettings` |
 | **Anthropic** | Official Anthropic C# SDK with native tool use (`ToolUnion` format, up to 5 tool iterations) |
 
@@ -520,7 +550,7 @@ Text-to-SQL engine that:
 1. Receives natural language queries about company data
 2. Uses an LLM to generate SQL against the ContosoRetailDW schema (embedded as a resource)
 3. Executes the SQL query with parameterized timeout and row limits
-4. Optionally generates chart recommendations based on query results
+4. Optionally generates chart recommendations based on query results (Stat/Table payloads are filled from the real result set)
 
 ### Supporting Services
 
@@ -529,6 +559,7 @@ Text-to-SQL engine that:
 | `ResilientLlmService` | `Core/Services/` | Polly-wrapped decorator for LLM calls |
 | `CompanyDataTool` | `Core/Services/` | `ILlmTool` implementation - bridges natural language to SQL |
 | `CompanyDataPlugin` | `Core/Services/` | Semantic Kernel plugin wrapper for `CompanyDataTool` |
+| `StudioClassifier` | `Core/Services/` | Deterministic (V2) chart-form choice from result shape |
 | `ChartDataTransformer` | `Core/Services/` | Parses and validates LLM chart JSON into `ChartRecommendation` |
 | `RankingParser` | `Core/Services/` | Regex-based extraction of rankings from model responses |
 | `AggregateRankingCalculator` | `Core/Services/` | Computes average rank positions across all peer reviews |
@@ -536,110 +567,65 @@ Text-to-SQL engine that:
 
 ---
 
-## Blazor Components
+## Angular Client
 
-### Component Hierarchy
+The frontend (`clients/angular`) is an Angular 22 SPA of standalone components with signal-based state and no NgModules. It talks to the API via a same-origin `/api` prefix (proxied to `:5131` in development, single-origin in production).
 
-```
-App.razor (HTML shell, CSS/JS imports, Prism.js CDN)
-└── Routes.razor (Router + AppErrorBoundary, auto-recovers on navigation)
-    └── MainLayout.razor (MudLayout: AppBar + Drawer + MainContent)
-        ├── Sidebar.razor (inside MudDrawer - conversation list & navigation)
-        └── [page content via @Body]
-            └── Chat.razor (/, /chat, /chat/{conversationId:guid})
-                └── [per message]
-                    ├── MarkdownRenderer.razor (user messages)
-                    └── AssistantMessagePanel.razor
-                        ├── LoadingSpinner.razor (during processing)
-                        └── MudTabs (lazy rendering per tab)
-                            ├── Tab 0: Stage3Panel.razor (Final Answer)
-                            │   ├── ToolUsagePanel.razor (if tools used)
-                            │   ├── MarkdownRenderer.razor
-                            │   └── ChartDisplay.razor (if chart present)
-                            ├── Tab 1: Stage1Panel.razor (Responses)
-                            │   ├── ToolUsagePanel.razor (per model)
-                            │   └── MarkdownRenderer.razor (per model)
-                            └── Tab 2: Stage2Panel.razor (Rankings)
-                                └── MarkdownRenderer.razor (de-anonymized)
-```
+### Routes
 
-### Page Components
+| Path | Component | Purpose |
+|------|-----------|---------|
+| `` (root) | `ChatPage` | Main chat interface |
+| `chat/:id` | `ChatPage` | A specific conversation |
+| `gallery` | `GalleryPage` | Every chart form in both modes with sample data (design/QA) |
 
-| Component | Route(s) | Purpose |
-|-----------|----------|---------|
-| `Chat.razor` | `/`, `/chat`, `/chat/{id:guid}` | Main chat interface - message display, input, council orchestration |
-| `Error.razor` | `/Error` | User-friendly error page |
-| `NotFound.razor` | `/not-found` | 404 page |
-
-### Layout Components
+### Components
 
 | Component | Purpose |
 |-----------|---------|
-| `MainLayout.razor` | Application shell - sidebar + content area |
-| `Sidebar.razor` | Conversation list, new conversation button, navigation |
-| `ReconnectModal.razor` | SignalR reconnection overlay with retry logic |
+| `app` (shell) | Topbar (brand mark, Classic/Studio + theme toggles), sidebar host, router outlet |
+| `chat-page` | Welcome screen, message list, input, council orchestration |
+| `sidebar` | Conversation list, new-chat, navigation |
+| `assistant-message` | Final / Responses / Rankings tabs; 3-step loading stepper; renders the visual per mode |
+| `visual-display` | Classic (V1) dispatcher → `chart-display` / `stat-tile` / `data-table` |
+| `chart-display` | Renders a `ChartRecommendation` via ngx-echarts |
+| `stat-tile`, `data-table` | KPI tiles and the table / accessible fallback |
+| `studio/studio-display` | Studio (V2) dispatcher → the pre-made card for the chosen form |
+| `studio/{studio-card, studio-chart, studio-kpi, studio-table}` | Curated pre-made components |
+| `gallery-page` | Renders all forms in both modes |
 
-### Shared Components
+### Services
 
-| Component | Purpose |
-|-----------|---------|
-| `AssistantMessagePanel` | Orchestrates display of Stage 1/2/3 panels for an assistant message |
-| `Stage1Panel` | Tabbed view showing each model's independent response |
-| `Stage2Panel` | Displays peer rankings with de-anonymization (reveals which model is A, B, C) |
-| `Stage3Panel` | Shows chairman's synthesized final answer + chart visualization |
-| `ChartDisplay` | Renders MudBlazor charts (Bar, Line, Pie, Donut) from `ChartRecommendation` |
-| `ToolUsagePanel` | Displays tool invocations - SQL queries, parameters, results |
-| `MarkdownRenderer` | Server-side markdown rendering via Markdig |
-| `TabNavigation` | Reusable tab control used across stage panels |
-| `LoadingSpinner` | Animated spinner shown during council deliberation |
-| `Logo` | Application logo with configurable sizing |
-| `AppErrorBoundary` | Global error boundary - catches component exceptions, shows user-friendly message |
+| Service | Purpose |
+|---------|---------|
+| `api.service` | HTTP client for the conversations API |
+| `conversation.store` (`ConversationStore`) | Signal store for the conversation list + current messages |
+| `council-stream.service` | Fetch-based SSE reader for the council stream |
+| `theme.service` | Dark/light theme (class-based, persisted to localStorage) |
+| `view-mode.service` | Classic ↔ Studio visualization mode (persisted) |
 
-### Web Services
+### Message Flow & Streaming
 
-| Service | Lifetime | Purpose |
-|---------|----------|---------|
-| `ConversationService` | Scoped | CRUD operations for conversations with database persistence |
-| `ConversationState` | Scoped | Observable state container for current conversation + conversation list |
-| `ThemeService` | Scoped | Dark/light theme toggle with MudBlazor integration |
-| `PdfExportService` | Scoped | Exports council responses to PDF (QuestPDF) and Excel (ClosedXML) |
-
-### Message Flow & Progressive Loading
-
-The chat interface provides real-time progress feedback through a `LoadingState` model with per-stage booleans:
+The chat interface provides real-time progress through SSE. When a message is sent, `ConversationStore` appends the user message and a loading assistant message, then `council-stream.service` opens the stream:
 
 ```
-User types message in Chat.razor
+User sends message in chat-page
     |
     v
-ConversationState.IsProcessing = true
+ConversationStore: append user + placeholder assistant (loading.stage1 = true)
     |
     v
-AssistantMessage created with Loading.Stage1 = true
-  --> UI shows: animated spinner + 3-step progress (Responses -> Review -> Synthesis)
-    |
-    v
-Stage1CollectResponsesAsync() completes
-  --> Loading.Stage2 = true, Stage1 data populated
-  --> UI: step 1 checkmark, step 2 pulsing, Stage1Panel tab enabled
-    |
-    v
-Stage2CollectRankingsAsync() completes + AggregateRankings calculated
-  --> Loading.Stage3 = true, Stage2 data populated
-  --> UI: step 2 checkmark, step 3 pulsing, Stage2Panel tab enabled
-    |
-    v
-Stage3SynthesizeFinalAsync() completes + chart propagated from top-ranked Stage1
-  --> All loading cleared, Stage3 data populated
-  --> UI: all tabs enabled, "Final Answer" tab active by default
-    |
-    v
-ConversationService.SaveAssistantMessageAsync()
-GenerateTitleInBackgroundAsync() (fire-and-forget for first message)
-ConversationState.IsProcessing = false
+council-stream.service POSTs to /api/conversations/{id}/messages, reads SSE frames:
+    event: loading  -> update the 3-step stepper (Responses -> Review -> Synthesis)
+    event: stage1   -> model responses populated; Responses tab enabled
+    event: stage2   -> rankings + aggregate rankings populated; Rankings tab enabled
+    event: stage3   -> chairman's final answer + charts; loading cleared
+    event: title    -> conversation auto-titled (first message)
+    event: done     -> processing complete
+    (event: error   -> error surfaced in the answer panel)
 ```
 
-**State management**: `ConversationState` uses an event-driven pub/sub pattern. Both `Chat.razor` and `Sidebar.razor` subscribe to `OnChange` and independently call `InvokeAsync(StateHasChanged)`. All components implement `IDisposable` with a `_disposed` guard flag to prevent ghost updates from disconnected circuits.
+State is held in signals; components re-render reactively. The Final Answer renders as a concise executive brief (bold lede + interpretation) with the chart rendered beside it.
 
 ---
 
@@ -654,6 +640,7 @@ SamurAI Council uses a dual-SDK approach:
 - `FunctionChoiceBehavior.Auto()` enables automatic tool invocation
 - Tools registered as kernel plugins via `KernelFunctionFactory.CreateFromMethod()`
 - Semantic Kernel handles multi-turn tool conversations automatically
+- The OpenAI connector accepts a custom base URL (the FortyAU gateway)
 
 **Anthropic** - via official Anthropic C# SDK:
 - Direct SDK integration (not via Semantic Kernel) for full tool use control
@@ -678,7 +665,7 @@ public interface ILlmTool
 
 Every tool-enabled query returns an `LlmQueryResult` containing:
 - `Content` - The model's final text response
-- `ToolUsages` - List of `ToolUsage` records (tool name, input, output, optional chart)
+- `ToolUsages` - List of `ToolUsage` records (tool name, input, output, optional chart + studio chart)
 - `UsedTools` - Boolean convenience property
 
 ---
@@ -691,8 +678,8 @@ Every tool-enabled query returns an `LlmQueryResult` containing:
 2. **Tool Provision**: If detected, `CompanyDataTool` is provided to models as an available tool
 3. **SQL Generation**: When a model invokes the tool, `CompanyDataService` uses an LLM to generate SQL from the natural language query against the embedded `ContosoRetailDW_Schema.md`
 4. **Execution**: Generated SQL is executed against SQL Server with configurable timeout and row limits
-5. **Chart Generation**: If the query returns tabular data, an LLM generates a `ChartRecommendation`
-6. **Response**: Results (data + optional chart) are returned to the calling model as tool output
+5. **Chart Generation**: If the query returns tabular data, both an LLM `ChartRecommendation` (Classic) and a deterministic `StudioClassifier` recommendation (Studio) are produced
+6. **Response**: Results (data + optional charts) are returned to the calling model as tool output
 
 ### Tool Flow Diagram
 
@@ -712,12 +699,12 @@ CompanyDataService.QueryCompanyDataAsync()
     |-- Results returned as CompanyDataResult
     |
     v
-CompanyDataService.GenerateChartRecommendationAsync()
-    |-- LLM analyzes results and recommends chart type
-    |-- Returns ChartRecommendation (type, labels, series, axes)
+Chart recommendations
+    |-- CompanyDataService.GenerateChartRecommendationAsync()  (LLM, Classic)
+    |-- StudioClassifier.Classify()                            (deterministic, Studio)
     |
     v
-Tool returns JSON: { success, sql, rowCount, data, chart }
+Tool returns JSON: { success, sql, rowCount, data, chart, studioChart }
     |
     v
 Model incorporates data into its response
@@ -748,41 +735,50 @@ The embedded schema (`ContosoRetailDW_Schema.md`) describes a star-schema retail
 
 ## Chart Visualization
 
-SamurAI Council includes LLM-driven chart generation for data query results.
+SamurAI Council visualizes data-query results in **two switchable modes**, toggled in the topbar. See `docs/implementation-review.md` §5 for the full comparison.
 
-### Supported Chart Types
+- **Classic (generative):** the LLM chooses the chart form and payload; a generic renderer (`util.chartToEChartsOption`) draws it via **ngx-echarts** (Apache ECharts).
+- **Studio (deterministic):** `StudioClassifier` inspects the SQL result's shape and selects a **pre-made component**, seeded with the real rows — no LLM in the presentation path.
 
-| Type | Use Case | Example Query |
+### Supported Chart Forms (`ChartType`)
+
+`None, Bar, HorizontalBar, GroupedBar, StackedBar, Line, Area, Pie, Donut, Scatter, Stat, Table`
+
+| Form | Use Case | Example Query |
 |------|----------|---------------|
-| **Bar** | Category comparisons | "Show top 5 products by revenue in 2008" |
-| **Line** | Trends over time | "Show monthly sales trends" |
-| **Pie** | Proportions of a whole | "What percentage of sales come from each channel?" |
-| **Donut** | Proportions (variant) | "Show sales distribution by region" |
-| **None** | Data unsuitable for charts | Single values, text-only results |
+| **Bar / HorizontalBar** | Category comparisons | "Show top 5 products by revenue in 2008" |
+| **Grouped / Stacked Bar** | Multi-series / composition | "Sales by channel and year" |
+| **Line / Area** | Trends over time | "Show monthly sales trends" |
+| **Pie / Donut** | Proportions of a whole | "What percentage of sales come from each channel?" |
+| **Scatter** | Correlation between two measures | "Unit price vs quantity" |
+| **Stat** | Headline number(s) | "Total revenue in 2008" |
+| **Table** | Detail listings / wide results | "List all stores" |
 
 ### Chart Data Model
 
 ```csharp
 public record ChartRecommendation
 {
-    ChartType Type { get; init; }          // Bar, Line, Pie, Donut, None
-    string Title { get; init; }            // Chart title
-    string[] Labels { get; init; }         // X-axis labels / pie segments
-    ChartSeriesData[] Series { get; init; } // Data series (name + values)
-    string? XAxisLabel { get; init; }      // Optional axis label
-    string? YAxisLabel { get; init; }      // Optional axis label
+    ChartType Type { get; init; }           // 12 forms (see above)
+    string Title { get; init; }             // Chart title
+    string[] Labels { get; init; }          // X-axis labels / pie segments
+    ChartSeriesData[] Series { get; init; } // Data series (values, or scatter points)
+    string? XAxisLabel { get; init; }
+    string? YAxisLabel { get; init; }
+    StatData[]? Stats { get; init; }        // KPI tiles
+    TableData? Table { get; init; }         // Table rows (filled from real data)
 }
 ```
 
 ### Rendering
 
-Charts are rendered client-side using MudBlazor's `MudChart` component in `ChartDisplay.razor`. The chart from the best-ranked Stage 1 response is automatically propagated to Stage 3 (the final answer panel).
+Charts are rendered client-side with **ngx-echarts**. The Classic path uses one generic renderer; the Studio path uses curated pre-made components. The charts from the best-ranked Stage 1 response are automatically propagated to Stage 3 (the final answer panel).
 
 ---
 
 ## Export Features
 
-Council responses can be exported in two formats:
+Council responses can be exported in two formats (services live in `SamurAICouncil.Core/Services/Export/`):
 
 ### PDF Export (QuestPDF)
 
@@ -799,7 +795,7 @@ Council responses can be exported in two formats:
 
 ### Download
 
-Exports are triggered from the UI and downloaded via JS interop (`fileDownload.js`).
+Exports are served by `GET /api/conversations/{id}/export?format=pdf|xlsx` and downloaded by the browser.
 
 ---
 
@@ -866,7 +862,7 @@ public abstract class Message { }
 FluentMigrator migrations run automatically on application startup:
 
 ```csharp
-// In Program.cs
+// In SamurAICouncil.Api/Program.cs
 MigrationRunner.RunMigrations(scope.ServiceProvider);
 ```
 
@@ -892,26 +888,21 @@ Handles specific PostgreSQL error codes:
 
 ### LLM Resilience
 
-**File:** `SamurAICouncil.Core/Resilience/LlmResiliencePolicies.cs`
-
 `ResilientLlmService` wraps `ILlmService` with a composed Polly policy stack:
 
 | Policy | Configuration | Purpose |
 |--------|--------------|---------|
-| **Timeout** | 60 seconds per call | Prevent hanging LLM requests |
-| **Circuit Breaker** | Opens after 5 failures, 30s break | Prevent cascade failures to LLM providers |
-| **Retry** | 3 retries, exponential backoff (2s, 4s, 8s) | Handle transient HTTP failures |
-
-Execution order (outermost first): Timeout -> Circuit Breaker -> Retry -> Actual LLM call
+| **Timeout** | per-call | Prevent hanging LLM requests |
+| **Circuit Breaker** | Opens after repeated failures | Prevent cascade failures to LLM providers |
+| **Retry** | exponential backoff | Handle transient HTTP failures |
 
 Handles `HttpRequestException`, non-cancellation `TaskCanceledException`, and `TimeoutRejectedException`. Returns null/empty on final failure rather than propagating exceptions.
 
 ### Application-Level Error Handling
 
-- `AppErrorBoundary.razor` catches unhandled component exceptions
-- User-friendly error messages with automatic recovery on navigation
+- The API surfaces failures as an `error` SSE event / error `Stage3`
+- The Angular client renders a user-friendly error message in the answer panel
 - Graceful fallback when chairman model returns empty (uses first Stage 1 response)
-- `ReconnectModal` handles SignalR disconnections in Blazor Server
 
 ---
 
@@ -919,61 +910,41 @@ Handles `HttpRequestException`, non-cancellation `TaskCanceledException`, and `T
 
 ### Test Suite Overview
 
-| Project | Tests | Focus | Frameworks |
-|---------|-------|-------|------------|
-| `SamurAICouncil.Core.Tests` | 232 | Business logic, services, ranking, anonymization | MSTest, Moq |
-| `SamurAICouncil.Data.Tests` | 18 | Database integration, repository CRUD | MSTest, TestContainers |
-| `SamurAICouncil.Web.Tests` | 110 | Component rendering, UI interactions | MSTest, bUnit, Moq |
-| **Total** | **360** | | |
-
-### Coverage Targets
-
-| Project | Target |
-|---------|--------|
-| Core.Tests | 90% (business logic) |
-| Data.Tests | Integration-focused |
-| Web.Tests | 50% (critical components) |
+| Project | Focus | Frameworks |
+|---------|-------|------------|
+| `SamurAICouncil.Core.Tests` | Business logic, services, ranking, anonymization, chart validation | MSTest, Moq |
+| `SamurAICouncil.Data.Tests` | Database integration, repository CRUD | MSTest, TestContainers |
+| `SamurAICouncil.Api.Tests` | API integration (SSE ordering) + `StudioClassifier` shape tests | MSTest, WebApplicationFactory |
+| `clients/angular` | Chart mapping / dispatch unit tests (`util.spec.ts`) | Vitest |
 
 ### Running Tests
 
 ```bash
-# Run all tests (360 total)
+# Run all .NET tests
 dotnet test
 
 # Run specific test project
 dotnet test SamurAICouncil.Core.Tests
 dotnet test SamurAICouncil.Data.Tests      # Requires Docker (TestContainers)
-dotnet test SamurAICouncil.Web.Tests       # Some tests require Docker
+dotnet test SamurAICouncil.Api.Tests
 
 # Run with code coverage
 dotnet test --collect:"XPlat Code Coverage"
 
 # Run specific test class
 dotnet test --filter "FullyQualifiedName~CouncilServiceTests"
+
+# Angular unit tests
+cd clients/angular && ng test
 ```
 
 ### Testing Patterns
 
-- **Unit tests** (Core.Tests): Mock `ILlmService` via Moq, test deliberation logic, ranking calculations, anonymization, chart validation (51 tests in `ChartDataTransformerTests` alone)
+- **Unit tests** (Core.Tests): Mock `ILlmService` via Moq, test deliberation logic, ranking calculations, anonymization, and chart validation
 - **Integration tests** (Core.Tests): Opt-in LLM integration tests using real API keys (loaded from `env_vars` file or environment), tagged with `[TestCategory("Integration")]`, skip gracefully via `Assert.Inconclusive` when keys are absent
 - **Integration tests** (Data.Tests): TestContainers spins up real `postgres:16-alpine`, tests repository CRUD + JSONB round-trip, cascade deletes; runs sequentially (`[assembly: DoNotParallelize]`)
-- **Component tests** (Web.Tests): bUnit renders Blazor components in isolation with mocked services, `JSRuntimeMode.Loose` for MudBlazor interop (54 tests for `MarkdownRenderer` alone)
-- **Integration tests** (Web.Tests): Full `ConversationService` end-to-end with real PostgreSQL via TestContainers
-
-### Key Test Classes
-
-| Class | Tests | Covers |
-|-------|-------|--------|
-| `MarkdownRendererTests` | 54 | Markdig pipeline: code blocks, typography, lists, tables, advanced elements |
-| `ChartDataTransformerTests` | 51 | Chart parsing, validation, truncation, label handling per chart type |
-| `ChartRecommendationSerializationTests` | 25 | JSON round-trip for all chart types and model properties |
-| `CompanyDataServiceIntegrationTests` | ~40 | E2E Text-to-SQL across all ContosoRetailDW table categories |
-| `SemanticKernelLlmServiceIntegrationTests` | 18 | OpenAI/Anthropic/Google queries + tool invocation |
-| `CouncilServiceTests` | 16 | Stage 1/2/3 orchestration, fallbacks, title generation |
-| `ConversationServiceIntegrationTests` | 13 | Full CRUD + multi-turn conversation flows |
-| `RankingParserTests` | 11 | All 4 parsing fallback strategies |
-| `MessageRepositoryTests` | 10 | JSONB serialization, message ordering, conversation isolation |
-| `ConversationRepositoryTests` | 8 | CRUD, cascade delete, listing with message counts |
+- **API tests** (Api.Tests): `WebApplicationFactory` exercises the controller end-to-end (including SSE event ordering); `StudioClassifierTests` assert the deterministic form choice for each result shape
+- **Frontend tests** (Angular): Vitest specs for the chart-mapping / dispatch logic in `util.ts`
 
 ---
 
@@ -999,14 +970,15 @@ The C# implementation faithfully reproduces the 3-stage deliberation pattern whi
 
 | Decision | Rationale |
 |----------|-----------|
-| **Semantic Kernel** for LLM integration | Native .NET support for OpenAI + Google, consistent API, built-in function calling |
+| **Angular SPA + Web API** (migrated from Blazor Server) | Single-origin static hosting (API serves the SPA from `wwwroot`), SSE streaming of stage results, API keys stay server-side |
+| **Server-Sent Events** for the council stream | One-way, text-based streaming fits the staged pipeline; simpler than WebSockets |
+| **Semantic Kernel** for LLM integration | Native .NET support for OpenAI + Google, consistent API, built-in function calling; supports a custom OpenAI-compatible gateway |
 | **Anthropic SDK** (direct, not via SK) | Full control over Anthropic's native tool use protocol with multi-turn support |
 | **PostgreSQL + Dapper** | JSONB columns for flexible stage data storage; Dapper provides full SQL control |
 | **FluentMigrator** | Code-first schema migrations that run on startup |
 | **Polly** for resilience | Industry-standard retry + circuit breaker for both LLM APIs and database |
-| **Blazor Server** (not WASM) | Server-side rendering keeps API keys secure; SignalR provides real-time UI updates |
-| **MudBlazor** for UI | Material Design components with built-in chart rendering |
-| **Scoped services** for UI state | `ConversationState` and `ConversationService` are scoped per Blazor circuit |
+| **Tailwind + ngx-echarts** for UI | Utility-first styling with a themed design system; ECharts for rich, engine-neutral charts |
+| **Two visualization modes** (Classic + Studio) | Compare a generative (LLM-chosen) vs deterministic (rule-based) approach to charting |
 
 ---
 

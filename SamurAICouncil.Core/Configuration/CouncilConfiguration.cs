@@ -45,6 +45,16 @@ public class ModelConfiguration
     public string? DisplayName { get; set; }
 
     /// <summary>
+    /// Optional sampling temperature for this model's role (0.0-2.0 for OpenAI-compatible
+    /// endpoints; lower = more deterministic/focused, higher = more varied). Only applied
+    /// when set — an unset value uses the provider/model's own default. Currently only
+    /// honored on the "openai" provider path (used for every role via the FortyAU gateway or
+    /// an OpenRouter-style OpenAI-compatible endpoint); not wired into the Anthropic/Google
+    /// paths, which aren't used for open-weight models in this project.
+    /// </summary>
+    public double? Temperature { get; set; }
+
+    /// <summary>
     /// Gets the full model identifier in "provider/model" format.
     /// </summary>
     public string FullModelId => $"{Provider}/{ModelId}";

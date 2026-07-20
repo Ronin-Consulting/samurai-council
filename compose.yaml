@@ -14,6 +14,11 @@
 # Usage:
 #   docker compose up -d
 #   docker compose logs -f web
+#
+# Alternate profile - open-source models via OpenRouter (see .env.openrouter.example):
+#   cp .env.openrouter.example .env.openrouter   # then set OPENAI_API_KEY to your OpenRouter key
+#   docker compose --env-file .env.openrouter up -d --build
+#   (or: ./scripts/dev-up.sh up openrouter)
 
 services:
   web:
@@ -32,46 +37,60 @@ services:
       - ConnectionStrings__ContosoDb=Server=sqlserver;Database=ContosoRetailDW;User Id=samurai_reader;Password=Reader!Pass123;TrustServerCertificate=True
 
       # API Keys / endpoint (from host environment)
-      # Routed through the FortyAU LiteLLM gateway (OpenAI-compatible).
-      # The "OpenAI" key holds the gateway token; all council roles use the
-      # "openai" provider pointed at OpenAIEndpoint below.
+      # Default profile (.env): routed through the FortyAU LiteLLM gateway (OpenAI-compatible).
+      # Alternate profile (.env.openrouter, via `docker compose --env-file .env.openrouter` or
+      # `./scripts/dev-up.sh up openrouter`): routed through OpenRouter with open-source models
+      # (see .env.openrouter.example). Both profiles reuse the "OpenAI" key/provider — only the
+      # endpoint + model ids differ. The "openai" provider is used for every role either way.
       - LlmApiKeys__OpenAI=${OPENAI_API_KEY}
-      - LlmApiKeys__OpenAIEndpoint=https://llm.fortyau.com/v1
+      - LlmApiKeys__OpenAIEndpoint=${OPENAI_API_ENDPOINT:-https://llm.fortyau.com/v1}
       - LlmApiKeys__Anthropic=${ANTHROPIC_API_KEY:-}
       - LlmApiKeys__Google=${GOOGLE_API_KEY:-}
+      # Optional per-attempt network-timeout / retry-count overrides for the OpenAI SDK
+      # client (only applied when set — blank/unset preserves the SDK's own defaults, i.e.
+      # the SDK's own default network timeout/retry behavior). Used by the openrouter profile
+      # to fail fast on a stuck call.
+      - LlmApiKeys__OpenAINetworkTimeoutSeconds=${OPENAI_NETWORK_TIMEOUT_SECONDS:-}
+      - LlmApiKeys__OpenAIMaxRetries=${OPENAI_MAX_RETRIES:-}
 
-      # Council configuration - Council Members (all via gateway)
-      # NOTE: Claude models are currently unavailable on the gateway, so the
-      # council uses GPT + Gemini for diversity.
+      # Council configuration - Council Members (all via the endpoint above)
+      # NOTE: Claude models are currently unavailable on the FortyAU gateway, so the
+      # default profile uses GPT + Gemini for diversity; the openrouter profile overrides
+      # these to open-source models (see .env.openrouter.example).
       - Council__CouncilModels__0__Provider=openai
-      - Council__CouncilModels__0__ModelId=gpt-4o
-      - Council__CouncilModels__0__DisplayName=GPT-4o
+      - Council__CouncilModels__0__ModelId=${COUNCIL_MODEL_0_ID:-gpt-4o}
+      - Council__CouncilModels__0__DisplayName=${COUNCIL_MODEL_0_NAME:-GPT-4o}
+      - Council__CouncilModels__0__Temperature=${COUNCIL_MODEL_0_TEMPERATURE:-}
       - Council__CouncilModels__1__Provider=openai
-      - Council__CouncilModels__1__ModelId=gpt-4.1
-      - Council__CouncilModels__1__DisplayName=GPT-4.1
+      - Council__CouncilModels__1__ModelId=${COUNCIL_MODEL_1_ID:-gpt-4.1}
+      - Council__CouncilModels__1__DisplayName=${COUNCIL_MODEL_1_NAME:-GPT-4.1}
+      - Council__CouncilModels__1__Temperature=${COUNCIL_MODEL_1_TEMPERATURE:-}
       - Council__CouncilModels__2__Provider=openai
-      - Council__CouncilModels__2__ModelId=gemini-2.5-flash
-      - Council__CouncilModels__2__DisplayName=Gemini 2.5 Flash
+      - Council__CouncilModels__2__ModelId=${COUNCIL_MODEL_2_ID:-gemini-2.5-flash}
+      - Council__CouncilModels__2__DisplayName=${COUNCIL_MODEL_2_NAME:-Gemini 2.5 Flash}
+      - Council__CouncilModels__2__Temperature=${COUNCIL_MODEL_2_TEMPERATURE:-}
 
       # Council configuration - Chairman (synthesizes final answer)
-      # Claude Opus 4.1 via the gateway (OpenAI-compatible). Other Claude
-      # models are currently unavailable on the gateway.
+      # Default: Claude Opus 4.1 via the FortyAU gateway. Overridden by the openrouter profile.
       - Council__ChairmanModel__Provider=openai
-      - Council__ChairmanModel__ModelId=claude-opus-4-1
-      - Council__ChairmanModel__DisplayName=Claude Opus 4.1
+      - Council__ChairmanModel__ModelId=${CHAIRMAN_MODEL_ID:-claude-opus-4-1}
+      - Council__ChairmanModel__DisplayName=${CHAIRMAN_MODEL_NAME:-Claude Opus 4.1}
+      - Council__ChairmanModel__Temperature=${CHAIRMAN_MODEL_TEMPERATURE:-}
 
       # Council configuration - Title generation (lightweight)
       - Council__TitleGenerationModel__Provider=openai
-      - Council__TitleGenerationModel__ModelId=gpt-4o-mini
-      - Council__TitleGenerationModel__DisplayName=GPT-4o mini
+      - Council__TitleGenerationModel__ModelId=${TITLEGEN_MODEL_ID:-gpt-4o-mini}
+      - Council__TitleGenerationModel__DisplayName=${TITLEGEN_MODEL_NAME:-GPT-4o mini}
+      - Council__TitleGenerationModel__Temperature=${TITLEGEN_MODEL_TEMPERATURE:-}
 
       # Company Data configuration (Text-to-SQL for ContosoRetailDW)
       - CompanyData__ConnectionString=Server=sqlserver;Database=ContosoRetailDW;User Id=samurai_reader;Password=Reader!Pass123;TrustServerCertificate=True
       - CompanyData__MaxRows=100
       - CompanyData__QueryTimeoutSeconds=30
       - CompanyData__SqlGenerationModel__Provider=openai
-      - CompanyData__SqlGenerationModel__ModelId=gpt-4o
-      - CompanyData__SqlGenerationModel__DisplayName=GPT-4o (SQL)
+      - CompanyData__SqlGenerationModel__ModelId=${SQLGEN_MODEL_ID:-gpt-4o}
+      - CompanyData__SqlGenerationModel__DisplayName=${SQLGEN_MODEL_NAME:-GPT-4o (SQL)}
+      - CompanyData__SqlGenerationModel__Temperature=${SQLGEN_MODEL_TEMPERATURE:-}
     depends_on:
       db:
         condition: service_healthy

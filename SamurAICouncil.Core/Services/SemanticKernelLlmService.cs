@@ -1,4 +1,5 @@
 using System.ClientModel;
+using System.ClientModel.Primitives;
 using System.Diagnostics;
 using System.Text.Json;
 using Anthropic;
@@ -82,7 +83,7 @@ public sealed class SemanticKernelLlmService : ILlmService, IDisposable
         {
             var result = model.Provider.ToLowerInvariant() switch
             {
-                "openai" => await QueryOpenAiAsync(model.ModelId, messages, cancellationToken),
+                "openai" => await QueryOpenAiAsync(model.ModelId, messages, model.Temperature, cancellationToken),
                 "anthropic" => await QueryAnthropicAsync(model.ModelId, messages, cancellationToken),
                 "google" => await QueryGoogleAsync(model.ModelId, messages, cancellationToken),
                 _ => throw new ArgumentException($"Unknown provider: {model.Provider}")
@@ -150,7 +151,7 @@ public sealed class SemanticKernelLlmService : ILlmService, IDisposable
         {
             var result = model.Provider.ToLowerInvariant() switch
             {
-                "openai" => await QueryOpenAiWithToolsAsync(model.ModelId, messages, toolsList, cancellationToken),
+                "openai" => await QueryOpenAiWithToolsAsync(model.ModelId, messages, toolsList, model.Temperature, cancellationToken),
                 "anthropic" => await QueryAnthropicWithToolsAsync(model.ModelId, messages, toolsList, cancellationToken),
                 "google" => await QueryGoogleWithToolsAsync(model.ModelId, messages, toolsList, cancellationToken),
                 _ => throw new ArgumentException($"Unknown provider: {model.Provider}")
@@ -190,6 +191,14 @@ public sealed class SemanticKernelLlmService : ILlmService, IDisposable
         if (!string.IsNullOrWhiteSpace(_apiKeys.OpenAIEndpoint))
         {
             var options = new OpenAIClientOptions { Endpoint = new Uri(_apiKeys.OpenAIEndpoint) };
+            if (_apiKeys.OpenAINetworkTimeoutSeconds is { } timeoutSeconds)
+            {
+                options.NetworkTimeout = TimeSpan.FromSeconds(timeoutSeconds);
+            }
+            if (_apiKeys.OpenAIMaxRetries is { } maxRetries)
+            {
+                options.RetryPolicy = new ClientRetryPolicy(maxRetries: maxRetries);
+            }
             var client = new OpenAIClient(new ApiKeyCredential(_apiKeys.OpenAI!), options);
             builder.AddOpenAIChatCompletion(modelId, client);
         }
@@ -218,6 +227,7 @@ public sealed class SemanticKernelLlmService : ILlmService, IDisposable
     private async Task<string?> QueryOpenAiAsync(
         string modelId,
         IEnumerable<ChatMessage> messages,
+        double? temperature,
         CancellationToken cancellationToken)
     {
         if (!_enabledProviders.Contains("openai"))
@@ -233,10 +243,14 @@ public sealed class SemanticKernelLlmService : ILlmService, IDisposable
         {
             var chatService = kernel.GetRequiredService<IChatCompletionService>();
             var chatHistory = ConvertToChatHistory(messages);
+            // Only construct execution settings when a temperature override is configured, so the
+            // default profile (no Temperature set) makes byte-for-byte the same request as before.
+            var settings = temperature is { } t ? new OpenAIPromptExecutionSettings { Temperature = t } : null;
 
             stopwatch.Restart();
             var response = await chatService.GetChatMessageContentAsync(
                 chatHistory,
+                settings,
                 cancellationToken: cancellationToken);
             var apiCallMs = stopwatch.ElapsedMilliseconds;
 
@@ -401,6 +415,7 @@ public sealed class SemanticKernelLlmService : ILlmService, IDisposable
         string modelId,
         IEnumerable<ChatMessage> messages,
         List<ILlmTool> tools,
+        double? temperature,
         CancellationToken cancellationToken)
     {
         if (!_enabledProviders.Contains("openai"))
@@ -457,7 +472,8 @@ public sealed class SemanticKernelLlmService : ILlmService, IDisposable
 #pragma warning disable SKEXP0001
             var settings = new OpenAIPromptExecutionSettings
             {
-                FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
+                FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(),
+                Temperature = temperature
             };
 #pragma warning restore SKEXP0001
 

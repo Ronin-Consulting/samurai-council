@@ -30,6 +30,22 @@ public class LlmApiKeysConfiguration
     public string? Google { get; set; }
 
     /// <summary>
+    /// Optional override for the OpenAI SDK's per-attempt network timeout (default: 100s,
+    /// the SDK's own built-in default). Only applied when set — an unset value preserves
+    /// the SDK's default network timeout for the default (FortyAU) profile.
+    /// </summary>
+    public int? OpenAINetworkTimeoutSeconds { get; set; }
+
+    /// <summary>
+    /// Optional override for the OpenAI SDK's built-in retry count (default: 3 retries / 4
+    /// total attempts). Lower this for less-reliable OpenAI-compatible endpoints so a stuck
+    /// call fails fast instead of retrying a dead connection repeatedly (e.g. 4 attempts at
+    /// the default ~100s network timeout can otherwise take ~400s to give up). Only applied
+    /// when set.
+    /// </summary>
+    public int? OpenAIMaxRetries { get; set; }
+
+    /// <summary>
     /// Validates that required API keys are present for the given providers.
     /// </summary>
     /// <param name="providers">List of provider names to validate (e.g., "openai", "anthropic", "google").</param>
