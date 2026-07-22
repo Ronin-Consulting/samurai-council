@@ -18,11 +18,6 @@ public class CompanyDataTool : ILlmTool
         _studioClassifier = studioClassifier;
     }
 
-    /// <summary>
-    /// Gets the chart recommendation from the last query execution.
-    /// </summary>
-    public ChartRecommendation? LastChartRecommendation { get; private set; }
-
     public string Name => "query_company_data";
 
     public string Description => "Query company financial, sales, product, customer, and inventory data from the database. " +
@@ -48,8 +43,6 @@ public class CompanyDataTool : ILlmTool
 
     public async Task<string> ExecuteAsync(JsonElement input, CancellationToken cancellationToken = default)
     {
-        LastChartRecommendation = null;
-
         var query = input.GetProperty("query").GetString();
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -59,15 +52,16 @@ public class CompanyDataTool : ILlmTool
         var result = await _dataService.QueryCompanyDataAsync(query, cancellationToken);
 
         // V1 (Classic): LLM-generated chart recommendation. V2 (Studio): deterministic classification.
+        ChartRecommendation? chart = null;
         ChartRecommendation? studioChart = null;
         if (result.Success && result.Data is { Count: > 0 })
         {
-            LastChartRecommendation = await _dataService.GenerateChartRecommendationAsync(
+            chart = await _dataService.GenerateChartRecommendationAsync(
                 query, result.Data, cancellationToken);
             studioChart = _studioClassifier.Classify(query, result.Data);
         }
 
-        return FormatResult(result, LastChartRecommendation, studioChart);
+        return FormatResult(result, chart, studioChart);
     }
 
     private static string FormatResult(CompanyDataResult result, ChartRecommendation? chart, ChartRecommendation? studioChart = null)

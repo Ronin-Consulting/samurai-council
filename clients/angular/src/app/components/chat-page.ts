@@ -194,6 +194,9 @@ export class ChatPage implements OnInit {
           this.store.setTitle(convId, data?.title ?? '');
           return;
         }
+        // The user may have navigated to a different conversation while this stream was still
+        // in flight — a late event for the old conversation must not mutate whatever's now shown.
+        if (this.store.current()?.id !== convId) return;
         this.store.updateLastMessage((m) => {
           const a: AssistantMessage = { ...(m as AssistantMessage) };
           switch (name) {
