@@ -338,9 +338,9 @@ GROUP BY p.BrandName;
 | Column | Type | Description |
 |--------|------|-------------|
 | CurrencyKey | int | Primary key |
-| CurrencyLabel | nvarchar(10) | Currency abbreviation (USD, EUR, GBP, CNY, etc.) |
-| CurrencyName | nvarchar(20) | Currency name |
-| CurrencyDescription | nvarchar(50) | Description |
+| CurrencyLabel | nvarchar(10) | Numeric ETL code (e.g. "001") - NOT a display code, do not use |
+| CurrencyName | nvarchar(20) | Currency abbreviation (USD, EUR, GBP, CNY, etc.) - use this for currency codes |
+| CurrencyDescription | nvarchar(50) | Full currency name (e.g. "US Dollar") |
 
 ### DimGeography
 **Geographic regions**
@@ -588,86 +588,117 @@ ORDER BY TotalSales DESC;
 | SalesQuantity | int | Sales quantity |
 | SalesAmount | money | Sales amount |
 
+### V_SalesAnalysis
+**General-purpose sales reporting view — sales by geography, product, channel, time, or currency, with no manual joins needed.** Pre-joins FactSales to all 8 of its dimensions and exposes only clean, unambiguous, business-named columns — use this instead of joining FactSales/DimDate/DimStore/DimGeography/DimProduct/etc. by hand.
+
+⚠️ CRITICAL: V_SalesAnalysis is already fully joined and flat. Query it ALONE with `FROM V_SalesAnalysis` and nothing else — do NOT JOIN it to FactSales, DimDate, DimStore, DimGeography, DimProduct, or any other table. It already has Year/Quarter/MonthName/SaleDate, CountryName, CategoryName/BrandName, ChannelName/StoreName, and CurrencyName directly as columns — there is nothing left to join.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| Year | int | Calendar year |
+| Quarter | nvarchar(20) | Quarter label, e.g. "Q1" (safe to filter on directly) |
+| MonthName | nvarchar(20) | Month name, e.g. "January" |
+| SaleDate | datetime | Date of sale |
+| ChannelName | nvarchar(20) | Store/Online/Catalog/Reseller |
+| StoreName | nvarchar(100) | Store name |
+| ContinentName | nvarchar(50) | Continent |
+| CountryName | nvarchar(100) | Country name |
+| StateProvinceName | nvarchar(100) | State/province |
+| CityName | nvarchar(100) | City |
+| CategoryName | nvarchar(30) | Product category |
+| SubcategoryName | nvarchar(50) | Product subcategory |
+| ProductName | nvarchar(500) | Product name |
+| BrandName | nvarchar(50) | Brand |
+| CurrencyName | nvarchar(20) | 3-letter ISO currency code, e.g. "USD" |
+| PromotionName | nvarchar(100) | Promotion name (NULL if no promotion) |
+| SalesQuantity | int | Units sold |
+| SalesAmount | money | Sales amount |
+| TotalCost | money | Total cost |
+| ReturnQuantity | int | Units returned |
+| ReturnAmount | money | Return amount |
+| DiscountQuantity | int | Units discounted |
+| DiscountAmount | money | Discount amount |
+
+```sql
+-- Sales by country (no need to join DimStore/DimGeography yourself)
+SELECT CountryName, SUM(SalesAmount) as TotalSales
+FROM V_SalesAnalysis
+GROUP BY CountryName
+ORDER BY TotalSales DESC;
+```
+
 ---
 
 ## Common Query Patterns
 
 ### Sales Analysis
+**Use V_SalesAnalysis for all of these — it already has clean, pre-joined columns. Do NOT manually join FactSales to DimDate/DimStore/DimChannel/DimProduct for these query shapes.**
 ```sql
 -- Total sales by year
-SELECT d.CalendarYear, SUM(f.SalesAmount) as TotalSales
-FROM FactSales f
-JOIN DimDate d ON f.DateKey = d.Datekey
-GROUP BY d.CalendarYear
-ORDER BY d.CalendarYear;
+SELECT Year, SUM(SalesAmount) as TotalSales
+FROM V_SalesAnalysis
+GROUP BY Year
+ORDER BY Year;
 
--- ⚠️ IMPORTANT: Quarterly filtering - use CalendarQuarterLabel, NOT CalendarQuarter!
--- Q1 2008 profit (correct way)
-SELECT SUM(f.SalesAmount) - SUM(f.TotalCost) - SUM(f.ReturnAmount) as Profit
-FROM FactSales f
-JOIN DimDate d ON f.DateKey = d.Datekey
-WHERE d.CalendarYear = 2008 AND d.CalendarQuarterLabel = 'Q1';
+-- ⚠️ IMPORTANT: Quarterly filtering - use the Quarter column (already 'Q1'..'Q4'), NOT a raw integer!
+-- Q1 2008 profit
+SELECT SUM(SalesAmount) - SUM(TotalCost) - SUM(ReturnAmount) as Profit
+FROM V_SalesAnalysis
+WHERE Year = 2008 AND Quarter = 'Q1';
 
--- Alternative: Filter by month range
-SELECT SUM(f.SalesAmount) - SUM(f.TotalCost) - SUM(f.ReturnAmount) as Profit
-FROM FactSales f
-JOIN DimDate d ON f.DateKey = d.Datekey
-WHERE d.CalendarYear = 2008 AND MONTH(d.Datekey) IN (1, 2, 3);
+-- Quarterly sales trend (chronological order via MIN(SaleDate) - do NOT re-join DimDate,
+-- V_SalesAnalysis already has Year/Quarter; ORDER BY Quarter alone sorts alphabetically, not chronologically)
+SELECT Year, Quarter, SUM(SalesAmount) as TotalSales
+FROM V_SalesAnalysis
+WHERE Year = 2008
+GROUP BY Year, Quarter
+ORDER BY Year, MIN(SaleDate);
 
 -- Top 10 products by revenue
-SELECT TOP 10 p.ProductName, SUM(f.SalesAmount) as Revenue
-FROM FactSales f
-JOIN DimProduct p ON f.ProductKey = p.ProductKey
-GROUP BY p.ProductName
+SELECT TOP 10 ProductName, SUM(SalesAmount) as Revenue
+FROM V_SalesAnalysis
+GROUP BY ProductName
 ORDER BY Revenue DESC;
 
 -- Sales by store
-SELECT s.StoreName, SUM(f.SalesAmount) as TotalSales
-FROM FactSales f
-JOIN DimStore s ON f.StoreKey = s.StoreKey
-GROUP BY s.StoreName
+SELECT StoreName, SUM(SalesAmount) as TotalSales
+FROM V_SalesAnalysis
+GROUP BY StoreName
 ORDER BY TotalSales DESC;
 
 -- Sales by channel
-SELECT c.ChannelName, SUM(f.SalesAmount) as TotalSales
-FROM FactSales f
-JOIN DimChannel c ON f.ChannelKey = c.ChannelKey
-GROUP BY c.ChannelName;
+SELECT ChannelName, SUM(SalesAmount) as TotalSales
+FROM V_SalesAnalysis
+GROUP BY ChannelName;
 
 -- Monthly sales trend
-SELECT d.CalendarYear, d.CalendarMonth, d.CalendarMonthLabel,
-       SUM(f.SalesAmount) as TotalSales
-FROM FactSales f
-JOIN DimDate d ON f.DateKey = d.Datekey
-GROUP BY d.CalendarYear, d.CalendarMonth, d.CalendarMonthLabel
-ORDER BY d.CalendarYear, d.CalendarMonth;
+SELECT Year, MonthName, SUM(SalesAmount) as TotalSales
+FROM V_SalesAnalysis
+GROUP BY Year, MonthName
+ORDER BY Year, MIN(SaleDate);
 
 -- Gross margin analysis
-SELECT d.CalendarYear,
-       SUM(f.SalesAmount) as Revenue,
-       SUM(f.TotalCost) as Cost,
-       SUM(f.SalesAmount) - SUM(f.TotalCost) - SUM(f.ReturnAmount) as GrossMargin
-FROM FactSales f
-JOIN DimDate d ON f.DateKey = d.Datekey
-GROUP BY d.CalendarYear;
+SELECT Year,
+       SUM(SalesAmount) as Revenue,
+       SUM(TotalCost) as Cost,
+       SUM(SalesAmount) - SUM(TotalCost) - SUM(ReturnAmount) as GrossMargin
+FROM V_SalesAnalysis
+GROUP BY Year;
 ```
 
 ### Product Analysis
+**Use V_SalesAnalysis — no manual joins to DimProduct/DimProductSubcategory/DimProductCategory needed.**
 ```sql
 -- Sales by product category
-SELECT pc.ProductCategoryName, SUM(f.SalesAmount) as TotalSales
-FROM FactSales f
-JOIN DimProduct p ON f.ProductKey = p.ProductKey
-JOIN DimProductSubcategory ps ON p.ProductSubcategoryKey = ps.ProductSubcategoryKey
-JOIN DimProductCategory pc ON ps.ProductCategoryKey = pc.ProductCategoryKey
-GROUP BY pc.ProductCategoryName
+SELECT CategoryName, SUM(SalesAmount) as TotalSales
+FROM V_SalesAnalysis
+GROUP BY CategoryName
 ORDER BY TotalSales DESC;
 
 -- Sales by brand
-SELECT p.BrandName, SUM(f.SalesAmount) as TotalSales, SUM(f.SalesQuantity) as UnitsSold
-FROM FactSales f
-JOIN DimProduct p ON f.ProductKey = p.ProductKey
-GROUP BY p.BrandName
+SELECT BrandName, SUM(SalesAmount) as TotalSales, SUM(SalesQuantity) as UnitsSold
+FROM V_SalesAnalysis
+GROUP BY BrandName
 ORDER BY TotalSales DESC;
 ```
 
@@ -690,13 +721,12 @@ ORDER BY TotalPurchases DESC;
 ```
 
 ### Geographic Analysis
+**Use V_SalesAnalysis.CountryName — no manual join to DimStore/DimGeography needed (and no risk of the CountryRegionName/RegionCountryName column-name confusion).**
 ```sql
--- Sales by country (use RegionCountryName, NOT CountryRegionName!)
-SELECT g.RegionCountryName, SUM(f.SalesAmount) as TotalSales
-FROM FactSales f
-JOIN DimStore s ON f.StoreKey = s.StoreKey
-JOIN DimGeography g ON s.GeographyKey = g.GeographyKey
-GROUP BY g.RegionCountryName
+-- Sales by country
+SELECT CountryName, SUM(SalesAmount) as TotalSales
+FROM V_SalesAnalysis
+GROUP BY CountryName
 ORDER BY TotalSales DESC;
 ```
 
@@ -751,14 +781,15 @@ ORDER BY OnHand DESC;
 - **Scenarios:** Actual (historical), Budget (planned), Forecast (projected)
 
 ### Table Selection Guide
-- Use **FactSales** for aggregated daily sales data (store + online combined)
+- **PREFER V_SalesAnalysis** over manually joining FactSales for questions about sales by geography, product, channel, time period, or currency — it already has clean, pre-joined columns (CountryName, CategoryName, SubcategoryName, BrandName, ChannelName, StoreName, Quarter, MonthName, CurrencyName, PromotionName, etc.). Only join raw fact/dimension tables yourself if the question needs a column V_SalesAnalysis doesn't have.
+- Use **FactSales** directly only for aggregations V_SalesAnalysis can't answer (store + online combined)
 - Use **FactOnlineSales** for transaction-level online order details with customer info
 - Use **V_CustomerOrders** for basket analysis with customer demographics
 - Use **V_ProductForecast** for product forecasting by category
 
 ### Important Column Notes
 - **DateKey** in DimDate is datetime type, join using the Datekey column
-- **DimCurrency** columns: CurrencyKey, CurrencyLabel (e.g., "USD"), CurrencyName, CurrencyDescription
-- **DimCurrency does NOT have** a CurrencySymbol column - use CurrencyLabel for currency codes
+- **DimCurrency** columns: CurrencyKey, CurrencyLabel (numeric ETL code, e.g. "001" - NOT a display code), CurrencyName (3-letter ISO code, e.g. "USD"), CurrencyDescription
+- **DimCurrency does NOT have** a CurrencySymbol column - use CurrencyName for currency codes (NOT CurrencyLabel, which is a numeric ETL code)
 - **DimGeography** has Geometry column for spatial data (may not be queryable via standard SQL)
 - **DimStore** has GeoLocation and Geometry columns for spatial data

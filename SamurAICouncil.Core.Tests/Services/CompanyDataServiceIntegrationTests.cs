@@ -768,6 +768,60 @@ public class CompanyDataServiceIntegrationTests
 
     #endregion
 
+    #region POC: V_SalesAnalysis Benchmark
+    //
+    // Re-asks the exact questions that previously hit documented landmines (ISSUES.md #1, #5,
+    // and the CalendarQuarter format gotcha), now that V_SalesAnalysis exists as an alternative,
+    // cleanly-named path. The LLM isn't forced to use the view - compare GeneratedSql in the
+    // console output before/after this POC to see whether generation quality improved.
+
+    [TestMethod]
+    public async Task Poc_SalesByCountry_UsesCleanColumnNames()
+    {
+        SkipIfMissingPrerequisites();
+        var service = CreateService();
+        var result = await service.QueryCompanyDataAsync("Total sales by country");
+        LogResult("Poc_SalesByCountry", result);
+        Assert.IsTrue(result.Success, $"Query should succeed. Error: {result.ErrorMessage}");
+        Assert.IsTrue(result.RowCount > 0, "Should return at least one row");
+    }
+
+    [TestMethod]
+    public async Task Poc_QuarterlySales_UsesQuarterLabel()
+    {
+        SkipIfMissingPrerequisites();
+        var service = CreateService();
+        var result = await service.QueryCompanyDataAsync("What were quarterly sales in 2008?");
+        LogResult("Poc_QuarterlySales", result);
+        Assert.IsTrue(result.Success, $"Query should succeed. Error: {result.ErrorMessage}");
+        Assert.IsTrue(result.RowCount > 0, "Should return at least one row");
+    }
+
+    [TestMethod]
+    public async Task Poc_SalesByCurrency_DoesNotUseCurrencyLabel()
+    {
+        SkipIfMissingPrerequisites();
+        var service = CreateService();
+        var result = await service.QueryCompanyDataAsync("Show me sales in different currencies");
+        LogResult("Poc_SalesByCurrency", result);
+        Assert.IsTrue(result.Success, $"Query should succeed. Error: {result.ErrorMessage}");
+        Assert.IsFalse(result.GeneratedSql?.Contains("CurrencyLabel", StringComparison.OrdinalIgnoreCase) == true,
+            "Generated SQL should use CurrencyName (the display code), not CurrencyLabel (a numeric ETL code)");
+    }
+
+    [TestMethod]
+    public async Task Poc_SalesByCategoryAndBrand_MultiJoinSimplified()
+    {
+        SkipIfMissingPrerequisites();
+        var service = CreateService();
+        var result = await service.QueryCompanyDataAsync("Show sales by product category and brand");
+        LogResult("Poc_SalesByCategoryAndBrand", result);
+        Assert.IsTrue(result.Success, $"Query should succeed. Error: {result.ErrorMessage}");
+        Assert.IsTrue(result.RowCount > 0, "Should return at least one row");
+    }
+
+    #endregion
+
     #region Helpers
 
     private static void LogResult(string testName, CompanyDataResult result)
@@ -809,7 +863,16 @@ public class CompanyDataServiceIntegrationTests
 
     private CompanyDataService CreateService()
     {
-        var apiKeys = new LlmApiKeysConfiguration { OpenAI = OpenAiApiKey };
+        // Repo default (.env) OPENAI_API_KEY is a FortyAU gateway token, not a real OpenAI key -
+        // it only authenticates against the gateway endpoint, not api.openai.com. Without this,
+        // SemanticKernelLlmService falls back to the real OpenAI endpoint and every call fails
+        // fast with an auth error before ever generating SQL.
+        var apiKeys = new LlmApiKeysConfiguration
+        {
+            OpenAI = OpenAiApiKey,
+            OpenAIEndpoint = Environment.GetEnvironmentVariable("LlmApiKeys__OpenAIEndpoint")
+                ?? "https://llm.fortyau.com/v1"
+        };
         var council = new CouncilConfiguration
         {
             CouncilModels = [new ModelConfiguration { Provider = "openai", ModelId = "gpt-4o-mini" }]
@@ -825,7 +888,9 @@ public class CompanyDataServiceIntegrationTests
             ConnectionString = ConnectionString,
             MaxRows = 100,
             QueryTimeoutSeconds = 30,
-            SqlGenerationModel = new ModelConfiguration { Provider = "openai", ModelId = "gpt-4o-mini" }
+            // Match the real deployed default (compose.yaml CompanyData__SqlGenerationModel__ModelId) -
+            // gpt-4o-mini is a much weaker model and isn't what production actually uses for SQL gen.
+            SqlGenerationModel = new ModelConfiguration { Provider = "openai", ModelId = "gpt-4o" }
         };
 
         return new CompanyDataService(

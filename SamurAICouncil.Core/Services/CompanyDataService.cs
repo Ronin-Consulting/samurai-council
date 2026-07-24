@@ -436,13 +436,22 @@ public partial class CompanyDataService : ICompanyDataService
             - FactInventory uses: OnHandQuantity, OnOrderQuantity (NOT UnitsOnHand, UnitsOrdered, TotalSold!)
             - DimGeography: country column is RegionCountryName (NOT CountryRegionName, Country, or CountryName!)
             - DimDate.Datekey is datetime type - use it directly for date joins
-            - For currency display, use CurrencyLabel (e.g., 'USD', 'EUR')
+            - For currency display, use CurrencyName (e.g., 'USD', 'EUR') - CurrencyLabel is a numeric ETL code, not a display code
+            - V_SalesAnalysis is already fully joined and flat - query it ALONE (FROM V_SalesAnalysis, nothing else).
+              Do NOT JOIN it to FactSales, DimDate, DimStore, DimGeography, or DimProduct - it already has
+              Year/Quarter/MonthName/SaleDate, CountryName, CategoryName/BrandName, and CurrencyName as columns.
 
             ## Table Selection
-            - Use FactSales for aggregated daily sales (store + online combined)
+            - PREFER V_SalesAnalysis over manually joining FactSales for questions about sales by geography,
+              product, channel, time period, or currency - it already has clean, pre-joined columns
+              (CountryName, CategoryName, SubcategoryName, BrandName, ChannelName, StoreName, Quarter,
+              MonthName, CurrencyName, PromotionName, etc.). Only join raw fact/dimension tables yourself
+              if the question needs a column V_SalesAnalysis doesn't have.
+            - Use FactSales directly only for aggregations V_SalesAnalysis can't answer (store + online combined)
             - Use FactOnlineSales for transaction-level online orders with customer details
             - Use V_CustomerOrders for basket analysis with customer demographics
             - Use V_ProductForecast for product forecasting by category
+            - Use V_SalesAnalysis for general sales reporting by geography/product/channel/time/currency - avoids manual joins
 
             ## Query Rules
             1. ONLY generate SELECT queries - no INSERT, UPDATE, DELETE, DROP, or any data modification
