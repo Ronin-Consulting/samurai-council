@@ -27,6 +27,15 @@ public interface IExportService
     Task<byte[]> ExportToExcelAsync(AssistantMessage message, string query, DateTime timestamp);
 
     /// <summary>
+    /// Exports an assistant message to Word (.docx) format.
+    /// </summary>
+    /// <param name="message">The assistant message containing council response data.</param>
+    /// <param name="query">The original user query.</param>
+    /// <param name="timestamp">When the query was submitted.</param>
+    /// <returns>Word document as a byte array.</returns>
+    Task<byte[]> ExportToWordAsync(AssistantMessage message, string query, DateTime timestamp);
+
+    /// <summary>
     /// Determines if the message contains tabular data suitable for Excel export.
     /// </summary>
     /// <param name="message">The assistant message to check.</param>

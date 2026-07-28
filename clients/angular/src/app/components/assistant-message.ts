@@ -54,6 +54,7 @@ type Tab = 'final' | 'responses' | 'rankings';
                   <span class="flex gap-2">
                     <a [href]="pdfUrl()" class="rounded-md border border-neutral-200 px-2.5 py-1 text-xs text-neutral-600 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">PDF</a>
                     <a [href]="xlsxUrl()" class="rounded-md border border-neutral-200 px-2.5 py-1 text-xs text-neutral-600 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">Excel</a>
+                    <a [href]="docxUrl()" class="rounded-md border border-neutral-200 px-2.5 py-1 text-xs text-neutral-600 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">Word</a>
                   </span>
                 }
               </div>
@@ -128,6 +129,7 @@ export class AssistantMessagePanel {
 
   pdfUrl = computed(() => this.api.exportUrl(this.conversationId(), 'pdf'));
   xlsxUrl = computed(() => this.api.exportUrl(this.conversationId(), 'xlsx'));
+  docxUrl = computed(() => this.api.exportUrl(this.conversationId(), 'docx'));
 
   loadingLabel = computed(() => {
     const l = this.message().loading;

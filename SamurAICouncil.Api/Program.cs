@@ -2,6 +2,7 @@ using QuestPDF.Infrastructure;
 using SamurAICouncil.Core.Configuration;
 using SamurAICouncil.Core.Interfaces;
 using SamurAICouncil.Core.Services;
+using SamurAICouncil.Core.Services.Export;
 using SamurAICouncil.Data;
 using SamurAICouncil.Data.Migrations;
 
@@ -44,8 +45,10 @@ builder.Services.AddSingleton<CompanyDataPlugin>();
 // Application orchestrator (scoped — depends on the scoped repositories)
 builder.Services.AddScoped<CouncilConversationService>();
 
-// Export (PDF/Excel) — moved from the Blazor host into Core
-builder.Services.AddScoped<IExportService, PdfExportService>();
+// Export (PDF/Excel/Word) — moved from the Blazor host into Core
+builder.Services.AddSingleton<IChartImageRenderer, ChartImageRenderer>();
+builder.Services.AddScoped<ReportDocumentBuilder>();
+builder.Services.AddScoped<IExportService, ExportService>();
 
 // Data layer (only when a connection string is configured)
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");

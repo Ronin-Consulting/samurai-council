@@ -31,7 +31,7 @@ export class ApiService {
     return this.http.post<{ deleted: number }>('/api/conversations/delete', { ids });
   }
 
-  exportUrl(conversationId: string, format: 'pdf' | 'xlsx'): string {
+  exportUrl(conversationId: string, format: 'pdf' | 'xlsx' | 'docx'): string {
     return `/api/conversations/${conversationId}/export?format=${format}`;
   }
 }

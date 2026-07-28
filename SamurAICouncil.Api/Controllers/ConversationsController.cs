@@ -82,7 +82,7 @@ public class ConversationsController : ControllerBase
         await _service.RunCouncilStreamAsync(id, body.Content ?? string.Empty, Emit, ct);
     }
 
-    // ---- Export (PDF / Excel) ----
+    // ---- Export (PDF / Excel / Word) ----
 
     [HttpGet("{id:guid}/export")]
     public async Task<IActionResult> Export(Guid id, [FromQuery] string format = "pdf", CancellationToken ct = default)
@@ -97,6 +97,14 @@ public class ConversationsController : ControllerBase
             return File(xlsx,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 _export.GenerateFilename("xlsx", timestamp));
+        }
+
+        if (string.Equals(format, "docx", StringComparison.OrdinalIgnoreCase))
+        {
+            var docx = await _export.ExportToWordAsync(message, query, timestamp);
+            return File(docx,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                _export.GenerateFilename("docx", timestamp));
         }
 
         var pdf = await _export.ExportToPdfAsync(message, query, timestamp);
